@@ -1,0 +1,6 @@
+{"jsonrpc":"2.0","method":"thread/started","params":{"threadId":"t1","title":"Demo"}}
+{"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"t1","turnId":"u1"}}
+{"jsonrpc":"2.0","method":"item/started","params":{"threadId":"t1","turnId":"u1","itemId":"i1","type":"agentMessage","text":""}}
+{"jsonrpc":"2.0","method":"item/delta","params":{"itemId":"i1","text":"Hello"}}
+{"jsonrpc":"2.0","method":"item/completed","params":{"threadId":"t1","turnId":"u1","itemId":"i1","type":"agentMessage","text":"Hello"}}
+{"jsonrpc":"2.0","method":"turn/completed","params":{"threadId":"t1","turnId":"u1"}}

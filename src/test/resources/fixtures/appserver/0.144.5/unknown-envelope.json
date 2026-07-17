@@ -1,0 +1,9 @@
+{
+  "method": "future/unknownMethod",
+  "params": {
+    "opaque": true,
+    "nested": {
+      "keepAsJsonObject": 1
+    }
+  }
+}

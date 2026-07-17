@@ -1,0 +1,2 @@
+{"snapshot":{"epoch":1,"requestWatermark":2,"items":[{"id":"i0","text":"history"}]}}
+{"live":{"epoch":1,"arrivalSeq":10,"requestWatermark":5,"itemId":"i1","status":"completed"}}

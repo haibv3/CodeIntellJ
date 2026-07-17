@@ -1,0 +1,6 @@
+{
+  "codexHome": "/tmp/codex-home-fixture",
+  "platformFamily": "unix",
+  "platformOs": "linux",
+  "userAgent": "codex_app_server/0.144.5"
+}

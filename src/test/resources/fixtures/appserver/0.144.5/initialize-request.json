@@ -1,0 +1,10 @@
+{
+  "clientInfo": {
+    "name": "codex-intellij",
+    "title": "Codex IntelliJ",
+    "version": "0.1.0"
+  },
+  "capabilities": {
+    "experimentalApi": false
+  }
+}

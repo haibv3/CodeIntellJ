@@ -1,0 +1,3 @@
+{"jsonrpc":"2.0","id":"1","method":"initialize","params":{"clientInfo":{"name":"codex-intellij","title":"Codex IntelliJ","version":"0.1.0"},"capabilities":{"experimentalApi":false}}}
+{"jsonrpc":"2.0","id":"1","result":{"codexHome":"/tmp/codex-home-fixture","platformFamily":"unix","platformOs":"linux","userAgent":"codex_app_server/0.144.5"}}
+{"jsonrpc":"2.0","method":"initialized","params":{}}

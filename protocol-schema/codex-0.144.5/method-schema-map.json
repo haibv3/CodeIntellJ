@@ -1,0 +1,1832 @@
+{
+  "codexVersion": "0.144.5",
+  "generatedFrom": {
+    "stableClientRequest": "stable/ClientRequest.json",
+    "experimentalClientRequest": "experimental/ClientRequest.json",
+    "stableServerRequest": "stable/ServerRequest.json",
+    "experimentalServerRequest": "experimental/ServerRequest.json",
+    "stableServerNotification": "stable/ServerNotification.json",
+    "experimentalServerNotification": "experimental/ServerNotification.json"
+  },
+  "methods": [
+    {
+      "method": "account/login/cancel",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/CancelLoginAccountParams.json",
+      "responseSchema": "stable/v2/CancelLoginAccountResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "account/login/start",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/LoginAccountParams.json",
+      "responseSchema": "stable/v2/LoginAccountResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "account/logout",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": "stable/v2/LogoutAccountResponse.json",
+      "notificationSchema": null,
+      "nullParams": true
+    },
+    {
+      "method": "account/rateLimitResetCredit/consume",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ConsumeAccountRateLimitResetCreditParams.json",
+      "responseSchema": "stable/v2/ConsumeAccountRateLimitResetCreditResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "account/rateLimits/read",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": "stable/v2/GetAccountRateLimitsResponse.json",
+      "notificationSchema": null,
+      "nullParams": true
+    },
+    {
+      "method": "account/read",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/GetAccountParams.json",
+      "responseSchema": "stable/v2/GetAccountResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "account/sendAddCreditsNudgeEmail",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/SendAddCreditsNudgeEmailParams.json",
+      "responseSchema": "stable/v2/SendAddCreditsNudgeEmailResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "account/usage/read",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": "stable/v2/GetAccountTokenUsageResponse.json",
+      "notificationSchema": null,
+      "nullParams": true
+    },
+    {
+      "method": "account/workspaceMessages/read",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": "stable/v2/GetWorkspaceMessagesResponse.json",
+      "notificationSchema": null,
+      "nullParams": true
+    },
+    {
+      "method": "app/list",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/AppsListParams.json",
+      "responseSchema": "stable/v2/AppsListResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "collaborationMode/list",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/CollaborationModeListParams.json",
+      "responseSchema": "experimental/v2/CollaborationModeListResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "command/exec",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/CommandExecParams.json",
+      "responseSchema": "stable/v2/CommandExecResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "command/exec/resize",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/CommandExecResizeParams.json",
+      "responseSchema": "stable/v2/CommandExecResizeResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "command/exec/terminate",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/CommandExecTerminateParams.json",
+      "responseSchema": "stable/v2/CommandExecTerminateResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "command/exec/write",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/CommandExecWriteParams.json",
+      "responseSchema": "stable/v2/CommandExecWriteResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "config/batchWrite",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ConfigBatchWriteParams.json",
+      "responseSchema": null,
+      "notificationSchema": null
+    },
+    {
+      "method": "config/mcpServer/reload",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": "stable/v2/McpServerRefreshResponse.json",
+      "notificationSchema": null,
+      "nullParams": true
+    },
+    {
+      "method": "config/read",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ConfigReadParams.json",
+      "responseSchema": "stable/v2/ConfigReadResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "config/value/write",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ConfigValueWriteParams.json",
+      "responseSchema": null,
+      "notificationSchema": null
+    },
+    {
+      "method": "configRequirements/read",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": "stable/v2/ConfigRequirementsReadResponse.json",
+      "notificationSchema": null,
+      "nullParams": true
+    },
+    {
+      "method": "environment/add",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/EnvironmentAddParams.json",
+      "responseSchema": "experimental/v2/EnvironmentAddResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "environment/info",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/EnvironmentInfoParams.json",
+      "responseSchema": "experimental/v2/EnvironmentInfoResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "experimentalFeature/enablement/set",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ExperimentalFeatureEnablementSetParams.json",
+      "responseSchema": "stable/v2/ExperimentalFeatureEnablementSetResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "experimentalFeature/list",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ExperimentalFeatureListParams.json",
+      "responseSchema": "stable/v2/ExperimentalFeatureListResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "externalAgentConfig/detect",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ExternalAgentConfigDetectParams.json",
+      "responseSchema": "stable/v2/ExternalAgentConfigDetectResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "externalAgentConfig/import",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ExternalAgentConfigImportParams.json",
+      "responseSchema": "stable/v2/ExternalAgentConfigImportResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "externalAgentConfig/import/readHistories",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": "stable/v2/ExternalAgentConfigImportHistoriesReadResponse.json",
+      "notificationSchema": null,
+      "nullParams": true
+    },
+    {
+      "method": "feedback/upload",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/FeedbackUploadParams.json",
+      "responseSchema": "stable/v2/FeedbackUploadResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "fs/copy",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/FsCopyParams.json",
+      "responseSchema": "stable/v2/FsCopyResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "fs/createDirectory",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/FsCreateDirectoryParams.json",
+      "responseSchema": "stable/v2/FsCreateDirectoryResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "fs/getMetadata",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/FsGetMetadataParams.json",
+      "responseSchema": "stable/v2/FsGetMetadataResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "fs/readDirectory",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/FsReadDirectoryParams.json",
+      "responseSchema": "stable/v2/FsReadDirectoryResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "fs/readFile",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/FsReadFileParams.json",
+      "responseSchema": "stable/v2/FsReadFileResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "fs/remove",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/FsRemoveParams.json",
+      "responseSchema": "stable/v2/FsRemoveResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "fs/unwatch",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/FsUnwatchParams.json",
+      "responseSchema": "stable/v2/FsUnwatchResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "fs/watch",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/FsWatchParams.json",
+      "responseSchema": "stable/v2/FsWatchResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "fs/writeFile",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/FsWriteFileParams.json",
+      "responseSchema": "stable/v2/FsWriteFileResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "fuzzyFileSearch",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/FuzzyFileSearchParams.json",
+      "responseSchema": "stable/FuzzyFileSearchResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "fuzzyFileSearch/sessionStart",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/FuzzyFileSearchSessionStartParams.json",
+      "responseSchema": "experimental/FuzzyFileSearchSessionStartResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "fuzzyFileSearch/sessionStop",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/FuzzyFileSearchSessionStopParams.json",
+      "responseSchema": "experimental/FuzzyFileSearchSessionStopResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "fuzzyFileSearch/sessionUpdate",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/FuzzyFileSearchSessionUpdateParams.json",
+      "responseSchema": "experimental/FuzzyFileSearchSessionUpdateResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "hooks/list",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/HooksListParams.json",
+      "responseSchema": "stable/v2/HooksListResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "initialize",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v1/InitializeParams.json",
+      "responseSchema": "stable/v1/InitializeResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "marketplace/add",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/MarketplaceAddParams.json",
+      "responseSchema": "stable/v2/MarketplaceAddResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "marketplace/remove",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/MarketplaceRemoveParams.json",
+      "responseSchema": "stable/v2/MarketplaceRemoveResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "marketplace/upgrade",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/MarketplaceUpgradeParams.json",
+      "responseSchema": "stable/v2/MarketplaceUpgradeResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "mcpServer/oauth/login",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/McpServerOauthLoginParams.json",
+      "responseSchema": "stable/v2/McpServerOauthLoginResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "mcpServer/resource/read",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/McpResourceReadParams.json",
+      "responseSchema": "stable/v2/McpResourceReadResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "mcpServer/tool/call",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/McpServerToolCallParams.json",
+      "responseSchema": "stable/v2/McpServerToolCallResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "mcpServerStatus/list",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ListMcpServerStatusParams.json",
+      "responseSchema": "stable/v2/ListMcpServerStatusResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "memory/reset",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": null,
+      "responseSchema": "experimental/v2/MemoryResetResponse.json",
+      "notificationSchema": null,
+      "nullParams": true
+    },
+    {
+      "method": "mock/experimentalMethod",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/MockExperimentalMethodParams.json",
+      "responseSchema": "experimental/v2/MockExperimentalMethodResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "model/list",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ModelListParams.json",
+      "responseSchema": "stable/v2/ModelListResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "modelProvider/capabilities/read",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ModelProviderCapabilitiesReadParams.json",
+      "responseSchema": "stable/v2/ModelProviderCapabilitiesReadResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "permissionProfile/list",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/PermissionProfileListParams.json",
+      "responseSchema": "stable/v2/PermissionProfileListResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "plugin/install",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/PluginInstallParams.json",
+      "responseSchema": "stable/v2/PluginInstallResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "plugin/installed",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/PluginInstalledParams.json",
+      "responseSchema": "stable/v2/PluginInstalledResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "plugin/list",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/PluginListParams.json",
+      "responseSchema": "stable/v2/PluginListResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "plugin/read",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/PluginReadParams.json",
+      "responseSchema": "stable/v2/PluginReadResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "plugin/share/checkout",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/PluginShareCheckoutParams.json",
+      "responseSchema": "stable/v2/PluginShareCheckoutResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "plugin/share/delete",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/PluginShareDeleteParams.json",
+      "responseSchema": "stable/v2/PluginShareDeleteResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "plugin/share/list",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/PluginShareListParams.json",
+      "responseSchema": "stable/v2/PluginShareListResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "plugin/share/save",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/PluginShareSaveParams.json",
+      "responseSchema": "stable/v2/PluginShareSaveResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "plugin/share/updateTargets",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/PluginShareUpdateTargetsParams.json",
+      "responseSchema": "stable/v2/PluginShareUpdateTargetsResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "plugin/skill/read",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/PluginSkillReadParams.json",
+      "responseSchema": "stable/v2/PluginSkillReadResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "plugin/uninstall",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/PluginUninstallParams.json",
+      "responseSchema": "stable/v2/PluginUninstallResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "process/kill",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ProcessKillParams.json",
+      "responseSchema": "experimental/v2/ProcessKillResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "process/resizePty",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ProcessResizePtyParams.json",
+      "responseSchema": "experimental/v2/ProcessResizePtyResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "process/spawn",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ProcessSpawnParams.json",
+      "responseSchema": "experimental/v2/ProcessSpawnResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "process/writeStdin",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ProcessWriteStdinParams.json",
+      "responseSchema": "experimental/v2/ProcessWriteStdinResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "remoteControl/client/list",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/RemoteControlClientsListParams.json",
+      "responseSchema": "experimental/v2/RemoteControlClientsListResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "remoteControl/client/revoke",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/RemoteControlClientsRevokeParams.json",
+      "responseSchema": "experimental/v2/RemoteControlClientsRevokeResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "remoteControl/disable",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/NullableRemoteControlDisableParams.json",
+      "responseSchema": "experimental/v2/RemoteControlDisableResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "remoteControl/enable",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/NullableRemoteControlEnableParams.json",
+      "responseSchema": "experimental/v2/RemoteControlEnableResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "remoteControl/pairing/start",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/RemoteControlPairingStartParams.json",
+      "responseSchema": "experimental/v2/RemoteControlPairingStartResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "remoteControl/pairing/status",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/RemoteControlPairingStatusParams.json",
+      "responseSchema": "experimental/v2/RemoteControlPairingStatusResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "remoteControl/status/read",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": null,
+      "responseSchema": "experimental/v2/RemoteControlStatusReadResponse.json",
+      "notificationSchema": null,
+      "nullParams": true
+    },
+    {
+      "method": "review/start",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ReviewStartParams.json",
+      "responseSchema": "stable/v2/ReviewStartResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "skills/config/write",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/SkillsConfigWriteParams.json",
+      "responseSchema": "stable/v2/SkillsConfigWriteResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "skills/extraRoots/set",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/SkillsExtraRootsSetParams.json",
+      "responseSchema": "stable/v2/SkillsExtraRootsSetResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "skills/list",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/SkillsListParams.json",
+      "responseSchema": "stable/v2/SkillsListResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/approveGuardianDeniedAction",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadApproveGuardianDeniedActionParams.json",
+      "responseSchema": "stable/v2/ThreadApproveGuardianDeniedActionResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/archive",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadArchiveParams.json",
+      "responseSchema": "stable/v2/ThreadArchiveResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/backgroundTerminals/clean",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ThreadBackgroundTerminalsCleanParams.json",
+      "responseSchema": "experimental/v2/ThreadBackgroundTerminalsCleanResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/backgroundTerminals/list",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ThreadBackgroundTerminalsListParams.json",
+      "responseSchema": "experimental/v2/ThreadBackgroundTerminalsListResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/backgroundTerminals/terminate",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ThreadBackgroundTerminalsTerminateParams.json",
+      "responseSchema": "experimental/v2/ThreadBackgroundTerminalsTerminateResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/compact/start",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadCompactStartParams.json",
+      "responseSchema": "stable/v2/ThreadCompactStartResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/decrement_elicitation",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ThreadDecrementElicitationParams.json",
+      "responseSchema": "experimental/v2/ThreadDecrementElicitationResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/delete",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadDeleteParams.json",
+      "responseSchema": "stable/v2/ThreadDeleteResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/fork",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadForkParams.json",
+      "responseSchema": "stable/v2/ThreadForkResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/goal/clear",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadGoalClearParams.json",
+      "responseSchema": "stable/v2/ThreadGoalClearResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/goal/get",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadGoalGetParams.json",
+      "responseSchema": "stable/v2/ThreadGoalGetResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/goal/set",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadGoalSetParams.json",
+      "responseSchema": "stable/v2/ThreadGoalSetResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/increment_elicitation",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ThreadIncrementElicitationParams.json",
+      "responseSchema": "experimental/v2/ThreadIncrementElicitationResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/inject_items",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadInjectItemsParams.json",
+      "responseSchema": "stable/v2/ThreadInjectItemsResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/items/list",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ThreadItemsListParams.json",
+      "responseSchema": "experimental/v2/ThreadItemsListResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/list",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadListParams.json",
+      "responseSchema": "stable/v2/ThreadListResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/loaded/list",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadLoadedListParams.json",
+      "responseSchema": "stable/v2/ThreadLoadedListResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/memoryMode/set",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ThreadMemoryModeSetParams.json",
+      "responseSchema": "experimental/v2/ThreadMemoryModeSetResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/metadata/update",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadMetadataUpdateParams.json",
+      "responseSchema": "stable/v2/ThreadMetadataUpdateResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/name/set",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadSetNameParams.json",
+      "responseSchema": "stable/v2/ThreadSetNameResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/read",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadReadParams.json",
+      "responseSchema": "stable/v2/ThreadReadResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/realtime/appendAudio",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ThreadRealtimeAppendAudioParams.json",
+      "responseSchema": "experimental/v2/ThreadRealtimeAppendAudioResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/realtime/appendSpeech",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ThreadRealtimeAppendSpeechParams.json",
+      "responseSchema": "experimental/v2/ThreadRealtimeAppendSpeechResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/realtime/appendText",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ThreadRealtimeAppendTextParams.json",
+      "responseSchema": "experimental/v2/ThreadRealtimeAppendTextResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/realtime/listVoices",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ThreadRealtimeListVoicesParams.json",
+      "responseSchema": "experimental/v2/ThreadRealtimeListVoicesResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/realtime/start",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ThreadRealtimeStartParams.json",
+      "responseSchema": "experimental/v2/ThreadRealtimeStartResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/realtime/stop",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ThreadRealtimeStopParams.json",
+      "responseSchema": "experimental/v2/ThreadRealtimeStopResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/resume",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadResumeParams.json",
+      "responseSchema": "stable/v2/ThreadResumeResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/rollback",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadRollbackParams.json",
+      "responseSchema": "stable/v2/ThreadRollbackResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/search",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ThreadSearchParams.json",
+      "responseSchema": "experimental/v2/ThreadSearchResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/settings/update",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ThreadSettingsUpdateParams.json",
+      "responseSchema": "experimental/v2/ThreadSettingsUpdateResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/shellCommand",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadShellCommandParams.json",
+      "responseSchema": "stable/v2/ThreadShellCommandResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/start",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadStartParams.json",
+      "responseSchema": "stable/v2/ThreadStartResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/turns/list",
+      "direction": "clientRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/v2/ThreadTurnsListParams.json",
+      "responseSchema": "experimental/v2/ThreadTurnsListResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/unarchive",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadUnarchiveParams.json",
+      "responseSchema": "stable/v2/ThreadUnarchiveResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "thread/unsubscribe",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/ThreadUnsubscribeParams.json",
+      "responseSchema": "stable/v2/ThreadUnsubscribeResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "turn/interrupt",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/TurnInterruptParams.json",
+      "responseSchema": "stable/v2/TurnInterruptResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "turn/start",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/TurnStartParams.json",
+      "responseSchema": "stable/v2/TurnStartResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "turn/steer",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/TurnSteerParams.json",
+      "responseSchema": "stable/v2/TurnSteerResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "windowsSandbox/readiness",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": "stable/v2/WindowsSandboxReadinessResponse.json",
+      "notificationSchema": null,
+      "nullParams": true
+    },
+    {
+      "method": "windowsSandbox/setupStart",
+      "direction": "clientRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/v2/WindowsSandboxSetupStartParams.json",
+      "responseSchema": "stable/v2/WindowsSandboxSetupStartResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "account/login/completed",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/AccountLoginCompletedNotification.json"
+    },
+    {
+      "method": "account/rateLimits/updated",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/AccountRateLimitsUpdatedNotification.json"
+    },
+    {
+      "method": "account/updated",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/AccountUpdatedNotification.json"
+    },
+    {
+      "method": "app/list/updated",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/AppListUpdatedNotification.json"
+    },
+    {
+      "method": "command/exec/outputDelta",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/CommandExecOutputDeltaNotification.json"
+    },
+    {
+      "method": "configWarning",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ConfigWarningNotification.json"
+    },
+    {
+      "method": "deprecationNotice",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/DeprecationNoticeNotification.json"
+    },
+    {
+      "method": "error",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ErrorNotification.json"
+    },
+    {
+      "method": "externalAgentConfig/import/completed",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ExternalAgentConfigImportCompletedNotification.json"
+    },
+    {
+      "method": "externalAgentConfig/import/progress",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ExternalAgentConfigImportProgressNotification.json"
+    },
+    {
+      "method": "fs/changed",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/FsChangedNotification.json"
+    },
+    {
+      "method": "fuzzyFileSearch/sessionCompleted",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/FuzzyFileSearchSessionCompletedNotification.json"
+    },
+    {
+      "method": "fuzzyFileSearch/sessionUpdated",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/FuzzyFileSearchSessionUpdatedNotification.json"
+    },
+    {
+      "method": "guardianWarning",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/GuardianWarningNotification.json"
+    },
+    {
+      "method": "hook/completed",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/HookCompletedNotification.json"
+    },
+    {
+      "method": "hook/started",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/HookStartedNotification.json"
+    },
+    {
+      "method": "item/agentMessage/delta",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/AgentMessageDeltaNotification.json"
+    },
+    {
+      "method": "item/autoApprovalReview/completed",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ItemGuardianApprovalReviewCompletedNotification.json"
+    },
+    {
+      "method": "item/autoApprovalReview/started",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ItemGuardianApprovalReviewStartedNotification.json"
+    },
+    {
+      "method": "item/commandExecution/outputDelta",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/CommandExecutionOutputDeltaNotification.json"
+    },
+    {
+      "method": "item/commandExecution/terminalInteraction",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/TerminalInteractionNotification.json"
+    },
+    {
+      "method": "item/completed",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ItemCompletedNotification.json"
+    },
+    {
+      "method": "item/fileChange/outputDelta",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/FileChangeOutputDeltaNotification.json"
+    },
+    {
+      "method": "item/fileChange/patchUpdated",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/FileChangePatchUpdatedNotification.json"
+    },
+    {
+      "method": "item/mcpToolCall/progress",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/McpToolCallProgressNotification.json"
+    },
+    {
+      "method": "item/plan/delta",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/PlanDeltaNotification.json"
+    },
+    {
+      "method": "item/reasoning/summaryPartAdded",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ReasoningSummaryPartAddedNotification.json"
+    },
+    {
+      "method": "item/reasoning/summaryTextDelta",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ReasoningSummaryTextDeltaNotification.json"
+    },
+    {
+      "method": "item/reasoning/textDelta",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ReasoningTextDeltaNotification.json"
+    },
+    {
+      "method": "item/started",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ItemStartedNotification.json"
+    },
+    {
+      "method": "mcpServer/oauthLogin/completed",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/McpServerOauthLoginCompletedNotification.json"
+    },
+    {
+      "method": "mcpServer/startupStatus/updated",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/McpServerStatusUpdatedNotification.json"
+    },
+    {
+      "method": "model/rerouted",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ModelReroutedNotification.json"
+    },
+    {
+      "method": "model/safetyBuffering/updated",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ModelSafetyBufferingUpdatedNotification.json"
+    },
+    {
+      "method": "model/verification",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ModelVerificationNotification.json"
+    },
+    {
+      "method": "process/exited",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ProcessExitedNotification.json"
+    },
+    {
+      "method": "process/outputDelta",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ProcessOutputDeltaNotification.json"
+    },
+    {
+      "method": "remoteControl/status/changed",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/RemoteControlStatusChangedNotification.json"
+    },
+    {
+      "method": "serverRequest/resolved",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ServerRequestResolvedNotification.json"
+    },
+    {
+      "method": "skills/changed",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/SkillsChangedNotification.json"
+    },
+    {
+      "method": "thread/archived",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadArchivedNotification.json"
+    },
+    {
+      "method": "thread/closed",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadClosedNotification.json"
+    },
+    {
+      "method": "thread/compacted",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ContextCompactedNotification.json"
+    },
+    {
+      "method": "thread/deleted",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadDeletedNotification.json"
+    },
+    {
+      "method": "thread/goal/cleared",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadGoalClearedNotification.json"
+    },
+    {
+      "method": "thread/goal/updated",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadGoalUpdatedNotification.json"
+    },
+    {
+      "method": "thread/name/updated",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadNameUpdatedNotification.json"
+    },
+    {
+      "method": "thread/realtime/closed",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadRealtimeClosedNotification.json"
+    },
+    {
+      "method": "thread/realtime/error",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadRealtimeErrorNotification.json"
+    },
+    {
+      "method": "thread/realtime/itemAdded",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadRealtimeItemAddedNotification.json"
+    },
+    {
+      "method": "thread/realtime/outputAudio/delta",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadRealtimeOutputAudioDeltaNotification.json"
+    },
+    {
+      "method": "thread/realtime/sdp",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadRealtimeSdpNotification.json"
+    },
+    {
+      "method": "thread/realtime/started",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadRealtimeStartedNotification.json"
+    },
+    {
+      "method": "thread/realtime/transcript/delta",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadRealtimeTranscriptDeltaNotification.json"
+    },
+    {
+      "method": "thread/realtime/transcript/done",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadRealtimeTranscriptDoneNotification.json"
+    },
+    {
+      "method": "thread/settings/updated",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadSettingsUpdatedNotification.json"
+    },
+    {
+      "method": "thread/started",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadStartedNotification.json"
+    },
+    {
+      "method": "thread/status/changed",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadStatusChangedNotification.json"
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadTokenUsageUpdatedNotification.json"
+    },
+    {
+      "method": "thread/unarchived",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/ThreadUnarchivedNotification.json"
+    },
+    {
+      "method": "turn/completed",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/TurnCompletedNotification.json"
+    },
+    {
+      "method": "turn/diff/updated",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/TurnDiffUpdatedNotification.json"
+    },
+    {
+      "method": "turn/moderationMetadata",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/TurnModerationMetadataNotification.json"
+    },
+    {
+      "method": "turn/plan/updated",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/TurnPlanUpdatedNotification.json"
+    },
+    {
+      "method": "turn/started",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/TurnStartedNotification.json"
+    },
+    {
+      "method": "warning",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/WarningNotification.json"
+    },
+    {
+      "method": "windows/worldWritableWarning",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/WindowsWorldWritableWarningNotification.json"
+    },
+    {
+      "method": "windowsSandbox/setupCompleted",
+      "direction": "serverNotification",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": null,
+      "responseSchema": null,
+      "notificationSchema": "stable/v2/WindowsSandboxSetupCompletedNotification.json"
+    },
+    {
+      "method": "account/chatgptAuthTokens/refresh",
+      "direction": "serverRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/ChatgptAuthTokensRefreshParams.json",
+      "responseSchema": "stable/ChatgptAuthTokensRefreshResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "applyPatchApproval",
+      "direction": "serverRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/ApplyPatchApprovalParams.json",
+      "responseSchema": "stable/ApplyPatchApprovalResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "attestation/generate",
+      "direction": "serverRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/AttestationGenerateParams.json",
+      "responseSchema": "stable/AttestationGenerateResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "currentTime/read",
+      "direction": "serverRequest",
+      "apiClass": "experimental",
+      "tree": "experimental",
+      "requestSchema": "experimental/CurrentTimeReadParams.json",
+      "responseSchema": "experimental/CurrentTimeReadResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "execCommandApproval",
+      "direction": "serverRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/ExecCommandApprovalParams.json",
+      "responseSchema": "stable/ExecCommandApprovalResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "item/commandExecution/requestApproval",
+      "direction": "serverRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/CommandExecutionRequestApprovalParams.json",
+      "responseSchema": "stable/CommandExecutionRequestApprovalResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "item/fileChange/requestApproval",
+      "direction": "serverRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/FileChangeRequestApprovalParams.json",
+      "responseSchema": "stable/FileChangeRequestApprovalResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "item/permissions/requestApproval",
+      "direction": "serverRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/PermissionsRequestApprovalParams.json",
+      "responseSchema": "stable/PermissionsRequestApprovalResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "item/tool/call",
+      "direction": "serverRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/DynamicToolCallParams.json",
+      "responseSchema": "stable/DynamicToolCallResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "item/tool/requestUserInput",
+      "direction": "serverRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/ToolRequestUserInputParams.json",
+      "responseSchema": "stable/ToolRequestUserInputResponse.json",
+      "notificationSchema": null
+    },
+    {
+      "method": "mcpServer/elicitation/request",
+      "direction": "serverRequest",
+      "apiClass": "stable",
+      "tree": "stable",
+      "requestSchema": "stable/McpServerElicitationRequestParams.json",
+      "responseSchema": "stable/McpServerElicitationRequestResponse.json",
+      "notificationSchema": null
+    }
+  ]
+}

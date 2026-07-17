@@ -1,0 +1,2 @@
+{"jsonrpc":"2.0","method":"turn/started","params":{"threadId":"t1","turnId":"u2"}}
+{"jsonrpc":"2.0","method":"turn/interrupted","params":{"threadId":"t1","turnId":"u2"}}

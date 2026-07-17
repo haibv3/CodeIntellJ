@@ -1,0 +1,6 @@
+{"seq":1,"event":"item/fileChange/patchUpdated","path":"A.kt","note":"server-explicit before/after when both sides present"}
+{"seq":2,"event":"turn/diff/updated","path":"A.kt","note":"server unified diff stream"}
+{"seq":3,"event":"baseline","source":"pre-turn-document","path":"A.kt","note":"stamped unsaved document wins over disk when server sides absent"}
+{"seq":4,"event":"baseline","source":"pre-turn-disk","path":"A.kt","note":"disk baseline when document baseline absent"}
+{"seq":5,"event":"render","mode":"warning-unified","note":"no authoritative before/after; do not attribute Codex changed from X to Y"}
+{"precedence":["server-explicit","pre-turn-document","pre-turn-disk","warning-unified"]}

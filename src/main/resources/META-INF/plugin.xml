@@ -1,0 +1,53 @@
+<idea-plugin>
+    <id>dev.haibachvan.codexintellij</id>
+    <name>Codex</name>
+    <vendor>haibachvan</vendor>
+    <description><![CDATA[
+        Native IntelliJ client for Codex IDE workflows over the public app-server contract.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <resource-bundle>messages.CodexBundle</resource-bundle>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <projectService
+                serviceImplementation="dev.haibachvan.codexintellij.CodexProjectService"/>
+        <toolWindow
+                id="Codex"
+                anchor="right"
+                factoryClass="dev.haibachvan.codexintellij.ui.CodexToolWindowFactory"/>
+        <projectConfigurable
+                parentId="tools"
+                instance="dev.haibachvan.codexintellij.settings.CodexConfigurable"
+                id="dev.haibachvan.codexintellij.settings"
+                displayName="Codex"/>
+    </extensions>
+
+    <actions>
+        <action id="codex.addToThread"
+                class="dev.haibachvan.codexintellij.platform.AddToThreadAction"
+                text="Add to Codex Thread"
+                description="Add current selection or editor context to the active Codex thread"/>
+        <action id="codex.addFileToThread"
+                class="dev.haibachvan.codexintellij.platform.AddFileToThreadAction"
+                text="Add File to Codex Thread"
+                description="Add the current file as Codex context"/>
+        <action id="codex.newChat"
+                class="dev.haibachvan.codexintellij.platform.NewChatAction"
+                text="New Codex Chat"
+                description="Start a new Codex chat thread"/>
+        <action id="codex.newCodexPanel"
+                class="dev.haibachvan.codexintellij.platform.NewCodexPanelAction"
+                text="New Codex Panel"
+                description="Open another Codex chat panel"/>
+        <action id="codex.openCommandMenu"
+                class="dev.haibachvan.codexintellij.platform.OpenCommandMenuAction"
+                text="Open Codex Command Menu"
+                description="Open the Codex slash-command menu"/>
+        <action id="codex.openSidebar"
+                class="dev.haibachvan.codexintellij.platform.OpenSidebarAction"
+                text="Open Codex Sidebar"
+                description="Open the Codex tool window"/>
+    </actions>
+</idea-plugin>
