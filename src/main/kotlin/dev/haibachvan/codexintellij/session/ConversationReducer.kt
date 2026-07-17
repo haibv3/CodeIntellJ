@@ -223,14 +223,8 @@ class ConversationReducer(
                 val patch = PatchFact(itemId, path, diff, status, changes)
                 ItemFact.Patch(itemId, threadId, turnId, status, rank, event.epoch, event.arrivalSeq, patch)
             }
-            "subagent", "collaboration", "collabAgentToolCall" -> {
-                val agent = AgentFact(
-                    itemId = itemId,
-                    agentId = params.string("agentId") ?: nested?.string("agentId") ?: itemId.value,
-                    parentItemId = (params.string("parentItemId") ?: nested?.string("parentItemId"))?.let(::ItemId),
-                    status = status,
-                    summary = text.takeIf { it.isNotBlank() },
-                )
+            "subagent", "subAgentActivity", "collaboration", "collabAgentToolCall" -> {
+                val agent = parseAgentFact(itemId, status, text, params, nested)
                 ItemFact.Subagent(itemId, threadId, turnId, status, rank, event.epoch, event.arrivalSeq, agent)
             }
             "approval" -> ItemFact.ApprovalReference(
@@ -242,10 +236,131 @@ class ConversationReducer(
         var next = state.copy(items = state.items + (itemId to item))
         when (item) {
             is ItemFact.Patch -> next = next.copy(patches = next.patches + (itemId to item.fact))
-            is ItemFact.Subagent -> next = next.copy(agents = next.agents + (itemId to item.fact))
+            is ItemFact.Subagent -> {
+                var agents = next.agents + (itemId to item.fact)
+                agents = mergeCollabAgentStates(agents, itemId, params, nested, item.status)
+                next = next.copy(agents = agents)
+            }
             else -> Unit
         }
         return next
+    }
+
+    private fun parseAgentFact(
+        itemId: ItemId,
+        status: ItemStatus,
+        text: String,
+        params: JsonObject,
+        nested: JsonObject?,
+    ): AgentFact {
+        val type = params.string("type") ?: nested?.string("type").orEmpty()
+        if (type == "subAgentActivity") {
+            val agentPath = params.string("agentPath") ?: nested?.string("agentPath").orEmpty()
+            val agentThreadId = params.string("agentThreadId")
+                ?: nested?.string("agentThreadId")
+                ?: itemId.value
+            val kind = params.string("kind") ?: nested?.string("kind").orEmpty()
+            val name = shortAgentLabel(agentPath).ifBlank { shortAgentLabel(agentThreadId) }
+            val kindStatus = when (kind) {
+                "started" -> ItemStatus.STARTED
+                "interrupted" -> ItemStatus.INTERRUPTED
+                "interacted" -> ItemStatus.ACTIVE
+                else -> status
+            }
+            return AgentFact(
+                itemId = itemId,
+                agentId = name.ifBlank { itemId.value },
+                parentItemId = (params.string("parentItemId") ?: nested?.string("parentItemId"))?.let(::ItemId),
+                status = if (status == ItemStatus.COMPLETED || status == ItemStatus.FAILED) status else kindStatus,
+                summary = buildString {
+                    if (kind.isNotBlank()) append(kind)
+                    if (agentPath.isNotBlank()) {
+                        if (isNotEmpty()) append(" · ")
+                        append(agentPath)
+                    }
+                    if (isEmpty() && text.isNotBlank()) append(text)
+                }.ifBlank { null },
+            )
+        }
+        val tool = params.string("tool") ?: nested?.string("tool")
+        val prompt = params.string("prompt") ?: nested?.string("prompt")
+        val receivers = (nested?.getAsJsonArray("receiverThreadIds") ?: params.getAsJsonArray("receiverThreadIds"))
+            ?.mapNotNull { el -> el.takeIf { it.isJsonPrimitive }?.asString }
+            .orEmpty()
+        val agentId = params.string("agentId")
+            ?: nested?.string("agentId")
+            ?: tool
+            ?: receivers.firstOrNull()?.let { shortAgentLabel(it) }
+            ?: itemId.value
+        val summary = prompt?.take(160)
+            ?: text.takeIf { it.isNotBlank() }
+            ?: tool?.let { "Collab · $it" }
+        return AgentFact(
+            itemId = itemId,
+            agentId = agentId,
+            parentItemId = (params.string("parentItemId") ?: nested?.string("parentItemId"))?.let(::ItemId),
+            status = status,
+            summary = summary,
+        )
+    }
+
+    private fun mergeCollabAgentStates(
+        agents: Map<ItemId, AgentFact>,
+        parentItemId: ItemId,
+        params: JsonObject,
+        nested: JsonObject?,
+        fallbackStatus: ItemStatus,
+    ): Map<ItemId, AgentFact> {
+        var result = agents
+        val states = nested?.getAsJsonObject("agentsStates")
+            ?: params.getAsJsonObject("agentsStates")
+        if (states != null) {
+            for ((threadId, el) in states.entrySet()) {
+                if (!el.isJsonObject) continue
+                val obj = el.asJsonObject
+                val id = ItemId("agent:$threadId")
+                result = result + (id to AgentFact(
+                    itemId = id,
+                    agentId = shortAgentLabel(threadId),
+                    parentItemId = parentItemId,
+                    status = mapCollabAgentStatus(obj.string("status")) ?: fallbackStatus,
+                    summary = obj.string("message"),
+                ))
+            }
+        }
+        val receivers = nested?.getAsJsonArray("receiverThreadIds")
+            ?: params.getAsJsonArray("receiverThreadIds")
+        receivers?.forEach { el ->
+            if (!el.isJsonPrimitive) return@forEach
+            val threadId = el.asString
+            val id = ItemId("agent:$threadId")
+            if (id !in result) {
+                result = result + (id to AgentFact(
+                    itemId = id,
+                    agentId = shortAgentLabel(threadId),
+                    parentItemId = parentItemId,
+                    status = fallbackStatus,
+                    summary = null,
+                ))
+            }
+        }
+        return result
+    }
+
+    private fun mapCollabAgentStatus(raw: String?): ItemStatus? =
+        when (raw?.lowercase()) {
+            "pendinginit", "running" -> ItemStatus.ACTIVE
+            "completed", "shutdown" -> ItemStatus.COMPLETED
+            "interrupted" -> ItemStatus.INTERRUPTED
+            "errored", "notfound" -> ItemStatus.FAILED
+            else -> null
+        }
+
+    private fun shortAgentLabel(raw: String): String {
+        val trimmed = raw.trim().trimEnd('/')
+        if (trimmed.isEmpty()) return ""
+        val leaf = trimmed.substringAfterLast('/').substringAfterLast('\\')
+        return leaf.ifBlank { trimmed.take(16) }
     }
 
     private fun appendDelta(

@@ -5,12 +5,15 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.wm.ToolWindow
+import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.ui.JBColor
+import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
 import dev.haibachvan.codexintellij.CodexProjectService
+import dev.haibachvan.codexintellij.agents.AgentTreeNode
 import dev.haibachvan.codexintellij.agents.AgentTreeProjection
 import dev.haibachvan.codexintellij.commands.ComposerSlashExecutor
 import dev.haibachvan.codexintellij.session.ConversationController
@@ -21,6 +24,8 @@ import dev.haibachvan.codexintellij.session.TurnFact
 import dev.haibachvan.codexintellij.session.TurnStatus
 import java.awt.BorderLayout
 import java.awt.CardLayout
+import java.awt.Cursor
+import java.awt.Dimension
 import java.awt.Font
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -32,6 +37,8 @@ import javax.swing.JPanel
 import javax.swing.SwingConstants
 import javax.swing.SwingUtilities
 import javax.swing.ListSelectionModel
+import javax.swing.Box
+import javax.swing.BoxLayout
 
 /**
  * Codex shell matching IDE chat UX: home (tasks + empty state) and active chat with model picker.
@@ -44,7 +51,18 @@ class CodexWorkspacePanel(
     private val cards = CardLayout()
     private val stack = JPanel(cards)
     private val statusLabel = JBLabel("Chưa kết nối").also { CodexToolWindowHeader.styleStatusLabel(it) }
-    private val agentStrip = JBLabel(" ")
+    private val agentStrip = JBLabel(" ").apply {
+        foreground = JBColor.GRAY
+        font = CodexUiFonts.secondary()
+        cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+        toolTipText = "Xem tác nhân / subagent"
+        addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent?) {
+                if (e?.button == MouseEvent.BUTTON1) showAgentsPopup()
+            }
+        })
+    }
+    private var latestAgentNodes: List<AgentTreeNode> = emptyList()
     private val chatTitle = JBLabel("Cuộc trò chuyện mới")
     private val titleActions by lazy {
         listOf(
@@ -164,7 +182,7 @@ class CodexWorkspacePanel(
             val mark = JLabel("<html><div style='text-align:center;color:gray'>" +
                 "<div style='font-size:28px'>⌘</div>" +
                 "<div style='margin-top:8px'>Codex sẵn sàng</div>" +
-                "<div style='margin-top:4px;font-size:11px'>Mô tả nhiệm vụ bên dưới hoặc chọn một nhiệm vụ gần đây</div>" +
+                "<div style='margin-top:4px;font-size:${CodexUiFonts.SECONDARY_PX}px'>Mô tả nhiệm vụ bên dưới hoặc chọn một nhiệm vụ gần đây</div>" +
                 "</div></html>", SwingConstants.CENTER)
             add(mark, BorderLayout.CENTER)
         }
@@ -186,7 +204,7 @@ class CodexWorkspacePanel(
                     refreshTasks(service.serverStateStore().snapshot())
                 }
             }, BorderLayout.WEST)
-            chatTitle.font = chatTitle.font.deriveFont(Font.BOLD, 13f)
+            chatTitle.font = CodexUiFonts.body(Font.BOLD)
             add(chatTitle, BorderLayout.CENTER)
             add(
                 JButton("Copy").also { btn ->
@@ -213,8 +231,7 @@ class CodexWorkspacePanel(
         page.add(header, BorderLayout.NORTH)
         page.add(chat, BorderLayout.CENTER)
         val south = JPanel(BorderLayout())
-        agentStrip.border = JBUI.Borders.empty(2, 12)
-        agentStrip.foreground = JBColor.GRAY
+        agentStrip.border = JBUI.Borders.empty(4, 12, 2, 12)
         south.add(agentStrip, BorderLayout.NORTH)
         south.add(chatComposer, BorderLayout.CENTER)
         page.add(south, BorderLayout.SOUTH)
@@ -608,11 +625,74 @@ class CodexWorkspacePanel(
 
     private fun refreshAgents(state: NormalizedServerState) {
         val nodes = AgentTreeProjection.from(state, model.selectedThread)
+        latestAgentNodes = nodes
         agentStrip.text = when {
             nodes.isEmpty() -> " "
-            nodes.size == 1 -> "1 tác nhân"
-            else -> "${nodes.size} tác nhân"
+            else -> {
+                val names = flattenAgentNames(nodes).distinct().take(4)
+                val extra = (flattenAgentNames(nodes).distinct().size - names.size).coerceAtLeast(0)
+                buildString {
+                    append(names.joinToString(" · "))
+                    if (extra > 0) append(" · +$extra")
+                    append("  ▾")
+                }
+            }
         }
+        agentStrip.isVisible = nodes.isNotEmpty()
+        agentStrip.toolTipText = if (nodes.isEmpty()) {
+            null
+        } else {
+            flattenAgentLines(nodes).joinToString("\n") + "\n(nhấn để xem chi tiết)"
+        }
+    }
+
+    private fun flattenAgentNames(nodes: List<AgentTreeNode>): List<String> =
+        nodes.flatMap { listOf(it.agentId) + flattenAgentNames(it.children) }
+
+    private fun flattenAgentLines(nodes: List<AgentTreeNode>, depth: Int = 0): List<String> =
+        nodes.flatMap { node ->
+            val pad = "  ".repeat(depth)
+            val line = buildString {
+                append(pad)
+                append(node.agentId)
+                append(" · ")
+                append(node.status)
+                node.summary?.takeIf { it.isNotBlank() }?.let { append(" — ").append(it.take(80)) }
+            }
+            listOf(line) + flattenAgentLines(node.children, depth + 1)
+        }
+
+    private fun showAgentsPopup() {
+        val nodes = latestAgentNodes
+        if (nodes.isEmpty()) return
+        val panel = JPanel(BorderLayout()).apply {
+            border = JBUI.Borders.empty(10, 12, 12, 12)
+            preferredSize = Dimension(JBUI.scale(360), JBUI.scale(220))
+            add(JBLabel("Tác nhân / subagent").apply {
+                font = CodexUiFonts.body(Font.BOLD)
+                border = JBUI.Borders.emptyBottom(8)
+            }, BorderLayout.NORTH)
+            val body = JPanel().apply {
+                layout = BoxLayout(this, BoxLayout.Y_AXIS)
+                isOpaque = false
+                flattenAgentLines(nodes).forEach { line ->
+                    add(JBLabel(line).apply {
+                        alignmentX = LEFT_ALIGNMENT
+                        border = JBUI.Borders.empty(3, 0)
+                        foreground = JBColor.foreground()
+                    })
+                }
+                add(Box.createVerticalGlue())
+            }
+            add(JBScrollPane(body), BorderLayout.CENTER)
+        }
+        JBPopupFactory.getInstance()
+            .createComponentPopupBuilder(panel, null)
+            .setRequestFocus(true)
+            .setResizable(true)
+            .setTitle("Codex Agents")
+            .createPopup()
+            .show(RelativePoint.getCenterOf(agentStrip))
     }
 
     fun refreshStatus() {

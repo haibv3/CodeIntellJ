@@ -11,12 +11,10 @@ import com.intellij.openapi.project.Project
 import com.intellij.ui.EditorTextField
 import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI
-import com.intellij.util.ui.UIUtil
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Cursor
 import java.awt.Dimension
-import java.awt.Font
 import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.RenderingHints
@@ -79,7 +77,7 @@ class CodeFenceCardPanel(
             add(
                 JLabel((language ?: "code").lowercase()).apply {
                     foreground = muted
-                    font = UIUtil.getLabelFont().deriveFont(Font.PLAIN, 12f)
+                    font = CodexUiFonts.secondary()
                 },
                 BorderLayout.WEST,
             )
@@ -102,7 +100,7 @@ class CodeFenceCardPanel(
             isContentAreaFilled = false
             isBorderPainted = false
             foreground = muted
-            font = UIUtil.getLabelFont().deriveFont(14f)
+            font = CodexUiFonts.body()
             toolTipText = "Copy"
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
             margin = JBUI.insets(2, 4)
@@ -149,6 +147,7 @@ class CodeFenceCardPanel(
                     Color(0x2B2B2B),
                 )
                 editor.scrollingModel.scroll(0, 0)
+                editor.colorsScheme.editorFontSize = CodexUiFonts.BODY_PX
                 return editor
             }
 

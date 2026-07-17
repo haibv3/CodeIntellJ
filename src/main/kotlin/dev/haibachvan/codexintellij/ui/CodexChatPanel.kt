@@ -55,11 +55,15 @@ class CodexChatPanel(
     private fun newHtmlPane(): JBHtmlPane =
         JBHtmlPane(
             JBHtmlPaneStyleConfiguration.builder()
-                .enableInlineCodeBackground(true)
+                .enableInlineCodeBackground(false)
                 .enableCodeBlocksBackground(false)
+                // Empty = do not bump <code> / <pre> above body size.
+                .largeCodeFontSizeSelectors(emptyList())
                 .build(),
             JBHtmlPaneConfiguration(),
         ).apply {
+            // Drives JBHtmlPane baseFontSize for body/p/li (CSS alone is often overridden).
+            font = CodexUiFonts.body()
             border = JBUI.Borders.empty(0, 12)
             isEditable = false
             isOpaque = false
@@ -194,6 +198,8 @@ class CodexChatPanel(
                     }"
                 is TranscriptBlock.CodeFence ->
                     "c:${block.language}:${block.code.hashCode()}"
+                is TranscriptBlock.AgentChip ->
+                    "a:${block.agentId}:${block.statusLabel}:${block.summary.hashCode()}"
             }
         }
 
@@ -211,6 +217,7 @@ class CodexChatPanel(
                     } catch (_: Throwable) {
                         pane.text = html.replace(Regex("""</?font\b[^>]*>""", RegexOption.IGNORE_CASE), "")
                     }
+                    HtmlSwingSafe.applyUniformContentFont(pane)
                     pane.setSize(width, Short.MAX_VALUE.toInt())
                     val pref = pane.preferredSize
                     pane.preferredSize = Dimension(width, pref.height.coerceAtLeast(24))
@@ -231,9 +238,13 @@ class CodexChatPanel(
                 is TranscriptBlock.CodeFence -> {
                     val card = CodeFenceCardPanel(project, block.language, block.code)
                     transcriptHost.add(card)
-                    // Measure after attach so editor lineHeight is real (avoids top-line clip).
                     card.doLayout()
                     card.maximumSize = Dimension(Integer.MAX_VALUE, card.preferredSize.height)
+                }
+                is TranscriptBlock.AgentChip -> {
+                    val chip = AgentChipPanel(block.agentId, block.statusLabel, block.summary)
+                    chip.maximumSize = Dimension(Integer.MAX_VALUE, chip.preferredSize.height)
+                    transcriptHost.add(chip)
                 }
             }
         }

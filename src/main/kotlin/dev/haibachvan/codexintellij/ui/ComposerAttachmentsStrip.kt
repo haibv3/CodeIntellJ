@@ -128,13 +128,13 @@ class ComposerAttachmentsStrip(
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
             isOpaque = false
             add(JBLabel(att.fileName).apply {
-                font = font.deriveFont(Font.PLAIN, 12f)
+                font = font.deriveFont(Font.PLAIN, CodexUiFonts.SECONDARY)
                 alignmentX = Component.LEFT_ALIGNMENT
             })
             add(Box.createVerticalStrut(1))
             add(JBLabel(att.subtitle).apply {
                 foreground = JBColor.GRAY
-                font = font.deriveFont(Font.PLAIN, 10f)
+                font = font.deriveFont(Font.PLAIN, CodexUiFonts.META)
                 alignmentX = Component.LEFT_ALIGNMENT
             })
         }
@@ -198,7 +198,7 @@ class ComposerAttachmentsStrip(
         g.color = Color(0x4A4A4A)
         g.fill(RoundRectangle2D.Float(0f, 0f, size.toFloat(), size.toFloat(), 6f, 6f))
         g.color = Color(0xAAAAAA)
-        g.font = Font(Font.SANS_SERIF, Font.PLAIN, 10)
+        g.font = Font(Font.SANS_SERIF, Font.PLAIN, CodexUiFonts.META_PX)
         g.drawString("IMG", size / 2 - 10, size / 2 + 4)
         g.dispose()
         return ImageIcon(img)

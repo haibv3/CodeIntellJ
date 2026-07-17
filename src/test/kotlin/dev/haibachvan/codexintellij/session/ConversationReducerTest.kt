@@ -71,6 +71,69 @@ class ConversationReducerTest {
     }
 
     @Test
+    fun `subAgentActivity is normalized as Subagent not Unknown`() {
+        var state = NormalizedServerState()
+        state = reducer.reduce(state, notification(1, "thread/started", obj("threadId" to "t1")))
+        state = reducer.reduce(
+            state,
+            notification(
+                2,
+                "item/completed",
+                obj(
+                    "threadId" to "t1",
+                    "turnId" to "u1",
+                    "itemId" to "sa1",
+                    "type" to "subAgentActivity",
+                    "agentPath" to "explore",
+                    "agentThreadId" to "thr-explore-1",
+                    "kind" to "started",
+                ),
+            ),
+        )
+        val item = state.items[ItemId("sa1")]
+        assertTrue(item is ItemFact.Subagent, "got $item")
+        val sub = item as ItemFact.Subagent
+        assertEquals("explore", sub.fact.agentId)
+        assertTrue(state.agents.containsKey(ItemId("sa1")))
+    }
+
+    @Test
+    fun `collabAgentToolCall merges agentsStates into agent map`() {
+        var state = NormalizedServerState()
+        state = reducer.reduce(state, notification(1, "thread/started", obj("threadId" to "t1")))
+        val agentsStates = JsonObject().apply {
+            add("thr-a", obj("status" to "running", "message" to "scanning"))
+            add("thr-b", obj("status" to "completed", "message" to "done"))
+        }
+        state = reducer.reduce(
+            state,
+            notification(
+                2,
+                "item/completed",
+                obj(
+                    "threadId" to "t1",
+                    "itemId" to "c1",
+                    "type" to "collabAgentToolCall",
+                    "tool" to "spawnAgent",
+                    "senderThreadId" to "t1",
+                    "status" to "completed",
+                ).apply {
+                    add("receiverThreadIds", com.google.gson.JsonArray().apply {
+                        add("thr-a")
+                        add("thr-b")
+                    })
+                    add("agentsStates", agentsStates)
+                },
+            ),
+        )
+        assertTrue(state.items[ItemId("c1")] is ItemFact.Subagent)
+        assertTrue(state.agents.containsKey(ItemId("agent:thr-a")))
+        assertTrue(state.agents.containsKey(ItemId("agent:thr-b")))
+        assertEquals(ItemStatus.ACTIVE, state.agents.getValue(ItemId("agent:thr-a")).status)
+        assertEquals(ItemStatus.COMPLETED, state.agents.getValue(ItemId("agent:thr-b")).status)
+    }
+
+    @Test
     fun `terminal rank never regresses to active`() {
         var state = NormalizedServerState()
         state = reducer.reduce(

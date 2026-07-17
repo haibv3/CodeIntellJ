@@ -50,7 +50,7 @@ class CodexComposerBar(
         lineWrap = true
         wrapStyleWord = true
         border = JBUI.Borders.empty(8, 10)
-        font = JBUI.Fonts.label().deriveFont(13f)
+        font = JBUI.Fonts.label().deriveFont(CodexUiFonts.BODY)
         toolTipText = placeholder
     }
     private val modelCombo = ComboBox<CodexModelOption>().apply {

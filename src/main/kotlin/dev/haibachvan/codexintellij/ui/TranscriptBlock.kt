@@ -8,4 +8,10 @@ sealed class TranscriptBlock {
         val language: String?,
         val code: String,
     ) : TranscriptBlock()
+    /** Codex-style agent chip: pill name + trailing status. */
+    data class AgentChip(
+        val agentId: String,
+        val statusLabel: String,
+        val summary: String?,
+    ) : TranscriptBlock()
 }

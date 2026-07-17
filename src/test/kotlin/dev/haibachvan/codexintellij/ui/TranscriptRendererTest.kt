@@ -65,7 +65,7 @@ class TranscriptRendererTest {
         assertTrue(html.contains("Hỏi về project"))
         assertTrue(html.contains("codex-copy:") || html.contains("agent"))
         assertTrue(html.contains("<h1>") || html.contains("Phạm vi MVP"))
-        assertTrue(html.contains("<code>") || html.contains("README.md") || html.contains("file"))
+        assertTrue(html.contains("class=\"icode\"") || html.contains("README.md") || html.contains("file"))
         assertTrue(html.contains("<li>") || html.contains("Tool Window"))
     }
 

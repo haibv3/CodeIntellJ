@@ -5,7 +5,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
-import com.intellij.util.ui.UIUtil
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Cursor
@@ -93,7 +92,7 @@ class ModifiedFilesCardPanel(
                 add(badgeLabel())
                 add(JBLabel(titleText).apply {
                     foreground = fg
-                    font = UIUtil.getLabelFont().deriveFont(Font.BOLD, 15f)
+                    font = CodexUiFonts.title()
                 })
             }
             val stats = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
@@ -148,7 +147,7 @@ class ModifiedFilesCardPanel(
             val pathLabel = object : JLabel(display) {
                 init {
                     foreground = muted
-                    font = UIUtil.getLabelFont().deriveFont(14f)
+                    font = CodexUiFonts.body()
                     cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
                     toolTipText = file.path
                 }
@@ -173,11 +172,11 @@ class ModifiedFilesCardPanel(
             add(DiffSparkline(added, removed, barWidth))
             add(JLabel("+$added").apply {
                 foreground = green
-                font = UIUtil.getLabelFont().deriveFont(Font.PLAIN, 13f)
+                font = CodexUiFonts.secondary()
             })
             add(JLabel("−$removed").apply {
                 foreground = red
-                font = UIUtil.getLabelFont().deriveFont(Font.PLAIN, 13f)
+                font = CodexUiFonts.secondary()
             })
         }
         return panel
@@ -200,7 +199,7 @@ class ModifiedFilesCardPanel(
                 g2.color = Color(0x6A6A6A)
                 g2.draw(RoundRectangle2D.Float(1f, 1f, width - 2f, height - 2f, 7f, 7f))
                 g2.color = Color(0xC9D1D9)
-                g2.font = font.deriveFont(Font.BOLD, 13f)
+                g2.font = CodexUiFonts.secondary(Font.BOLD)
                 val fm = g2.fontMetrics
                 val s = "+"
                 g2.drawString(s, (width - fm.stringWidth(s)) / 2, (height + fm.ascent - fm.descent) / 2)
@@ -215,7 +214,7 @@ class ModifiedFilesCardPanel(
             isContentAreaFilled = false
             isBorderPainted = false
             foreground = muted
-            font = UIUtil.getLabelFont().deriveFont(14f)
+            font = CodexUiFonts.body()
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
             margin = JBUI.insets(4, 6)
             horizontalTextPosition = SwingConstants.LEFT
@@ -238,7 +237,7 @@ class ModifiedFilesCardPanel(
                 isContentAreaFilled = false
                 isBorderPainted = false
                 foreground = fg
-                font = UIUtil.getLabelFont().deriveFont(Font.BOLD, 14f)
+                font = CodexUiFonts.body(Font.BOLD)
                 cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
                 margin = JBUI.insets(0)
                 border = JBUI.Borders.empty(7, 16)

@@ -78,12 +78,14 @@ object ThreadSnapshotImport {
                 parseItem(itemEl.asJsonObject, threadId, turnId, epoch, seq++)?.let { items += it }
             }
         }
+        val agents = items.filterIsInstance<ItemFact.Subagent>().map { it.fact }
         return SnapshotEnvelope(
             epoch = epoch,
             requestWatermark = 0L,
             threads = listOf(threadFact),
             turns = turns,
             items = items,
+            agents = agents,
         )
     }
 
@@ -161,6 +163,36 @@ object ThreadSnapshotImport {
                 ItemFact.Patch(
                     itemId, threadId, turnId, status, rank, epoch, arrivalSeq,
                     PatchFact(itemId, path, diff, status, changes),
+                )
+            }
+            "subagent", "subAgentActivity", "collaboration", "collabAgentToolCall" -> {
+                val agentPath = item.string("agentPath").orEmpty()
+                val agentThreadId = item.string("agentThreadId")
+                val kind = item.string("kind")
+                val tool = item.string("tool")
+                val prompt = item.string("prompt")
+                val agentId = item.string("agentId")
+                    ?: tool
+                    ?: agentPath.substringAfterLast('/').ifBlank { null }
+                    ?: agentThreadId
+                    ?: itemId.value
+                val summary = prompt?.take(160)
+                    ?: kind?.let { k ->
+                        buildString {
+                            append(k)
+                            if (agentPath.isNotBlank()) append(" · ").append(agentPath)
+                        }
+                    }
+                    ?: item.string("text")
+                ItemFact.Subagent(
+                    itemId, threadId, turnId, status, rank, epoch, arrivalSeq,
+                    AgentFact(
+                        itemId = itemId,
+                        agentId = agentId,
+                        parentItemId = item.string("parentItemId")?.let(::ItemId),
+                        status = status,
+                        summary = summary,
+                    ),
                 )
             }
             else -> null

@@ -422,7 +422,7 @@ class ComposerSuggestionController(
             if (row is Row.Header) {
                 return JLabel(row.title).apply {
                     border = JBUI.Borders.empty(8, 12, 2, 12)
-                    font = font.deriveFont(Font.BOLD, 11f)
+                    font = font.deriveFont(Font.BOLD, CodexUiFonts.SECONDARY)
                     foreground = JBColor.GRAY
                     isOpaque = true
                     background = list?.background
@@ -477,7 +477,7 @@ class ComposerSuggestionController(
                 alignmentX = LEFT_ALIGNMENT
             }
             val titleLabel = JLabel(title).apply {
-                font = font.deriveFont(Font.PLAIN, 13f)
+                font = font.deriveFont(Font.PLAIN, CodexUiFonts.BODY)
                 foreground = when {
                     !enabled -> JBUI.CurrentTheme.Label.disabledForeground()
                     isSelected -> list?.selectionForeground
@@ -486,7 +486,7 @@ class ComposerSuggestionController(
                 alignmentX = LEFT_ALIGNMENT
             }
             val subLabel = JLabel(subtitle).apply {
-                font = font.deriveFont(Font.PLAIN, 11f)
+                font = font.deriveFont(Font.PLAIN, CodexUiFonts.SECONDARY)
                 foreground = if (isSelected) {
                     list?.selectionForeground ?: JBColor.GRAY
                 } else {

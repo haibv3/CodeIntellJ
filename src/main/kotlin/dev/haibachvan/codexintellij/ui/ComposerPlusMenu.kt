@@ -235,19 +235,19 @@ class ComposerPlusMenuPanel(
             maximumSize = Dimension(Int.MAX_VALUE, 28)
             add(JBLabel(text).apply {
                 foreground = JBColor.GRAY
-                font = font.deriveFont(Font.BOLD, 11f)
+                font = font.deriveFont(Font.BOLD, CodexUiFonts.SECONDARY)
             })
             add(Box.createHorizontalGlue())
         }
 
     private fun row(entry: ComposerPlusEntry): JPanel {
         val title = JBLabel(entry.title).apply {
-            font = font.deriveFont(Font.PLAIN, 13f)
+            font = font.deriveFont(Font.PLAIN, CodexUiFonts.BODY)
             alignmentX = Component.LEFT_ALIGNMENT
         }
         val desc = JBLabel(entry.description).apply {
             foreground = JBColor.GRAY
-            font = font.deriveFont(Font.PLAIN, 11f)
+            font = font.deriveFont(Font.PLAIN, CodexUiFonts.SECONDARY)
             alignmentX = Component.LEFT_ALIGNMENT
             toolTipText = entry.description
         }

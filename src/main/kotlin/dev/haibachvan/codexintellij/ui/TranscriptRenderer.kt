@@ -104,10 +104,21 @@ object TranscriptRenderer {
         }
         val emittedActivityKeys = HashSet<String>()
         val emittedPatchKeys = HashSet<String>()
+        val emittedAgentChipIds = HashSet<String>()
         fun emitModifiedFiles(sectionItems: List<ItemFact>) {
             val key = activitySectionKey(sectionItems)
             if (!emittedPatchKeys.add(key)) return
             modifiedFilesPayload(sectionItems)?.let { blocks += TranscriptBlock.ModifiedFiles(it) }
+        }
+        fun emitAgentChips(sectionItems: List<ItemFact>) {
+            for (sub in sectionItems.filterIsInstance<ItemFact.Subagent>()) {
+                if (!emittedAgentChipIds.add(sub.id.value)) continue
+                blocks += TranscriptBlock.AgentChip(
+                    agentId = sub.fact.agentId,
+                    statusLabel = agentStatusLabel(sub.fact.status),
+                    summary = sub.fact.summary,
+                )
+            }
         }
         for (item in items) {
             when (item) {
@@ -119,16 +130,17 @@ object TranscriptRenderer {
                             val sectionItems = activityItemsForKey(items, key, options.activeTurnId)
                             html.append(activitySection(sectionItems, options))
                             flushHtml()
-                            // Card waits for the final agent reply (or end-of-turn flush).
+                            emitAgentChips(sectionItems)
                         }
                     } else {
                         flushHtml()
                         for (block in expandAgentMessage(item.id.value, item.text, options)) {
                             blocks += block
                         }
-                        // Modified-files card belongs after the answer, not above it.
                         val key = activitySectionKey(listOf(item))
-                        emitModifiedFiles(activityItemsForKey(items, key, options.activeTurnId))
+                        val sectionItems = activityItemsForKey(items, key, options.activeTurnId)
+                        emitModifiedFiles(sectionItems)
+                        emitAgentChips(sectionItems)
                     }
                 }
                 is ItemFact.ApprovalReference -> html.append(
@@ -153,6 +165,7 @@ object TranscriptRenderer {
                     val sectionItems = activityItemsForKey(items, key, options.activeTurnId)
                     html.append(activitySection(sectionItems, options))
                     flushHtml()
+                    emitAgentChips(sectionItems)
                 }
             }
         }
@@ -165,7 +178,6 @@ object TranscriptRenderer {
             )
         }
         flushHtml()
-        // Turns with patches but no final agent reply yet (or patches after the reply).
         for (key in items
             .filter { isActivityItem(it, items, options.activeTurnId) }
             .map { activitySectionKey(listOf(it)) }
@@ -173,8 +185,26 @@ object TranscriptRenderer {
             if (key in emittedPatchKeys) continue
             emitModifiedFiles(activityItemsForKey(items, key, options.activeTurnId))
         }
+        // Any subagent not yet shown (edge ordering).
+        for (sub in items.filterIsInstance<ItemFact.Subagent>()) {
+            if (!emittedAgentChipIds.add(sub.id.value)) continue
+            blocks += TranscriptBlock.AgentChip(
+                agentId = sub.fact.agentId,
+                statusLabel = agentStatusLabel(sub.fact.status),
+                summary = sub.fact.summary,
+            )
+        }
         return blocks
     }
+
+    private fun agentStatusLabel(status: ItemStatus): String =
+        when (status) {
+            ItemStatus.COMPLETED -> "hoàn tất"
+            ItemStatus.FAILED -> "lỗi"
+            ItemStatus.INTERRUPTED -> "đã dừng"
+            ItemStatus.STARTED, ItemStatus.ACTIVE -> "đang chạy"
+            ItemStatus.UNKNOWN -> "…"
+        }
 
     fun lastAgentText(state: NormalizedServerState, threadId: ThreadId?): String? {
         if (threadId == null) return null
@@ -344,17 +374,8 @@ object TranscriptRenderer {
                 items.forEach { item ->
                     when (item) {
                         is ItemFact.Command -> append(commandActivity(item, options))
-                        // Patches render in the always-visible modified-files card.
-                        is ItemFact.Patch -> Unit
-                        is ItemFact.Subagent -> append(
-                            activityRow(
-                                item.id.value,
-                                "◈",
-                                "Agent ${item.fact.agentId}",
-                                item.fact.summary,
-                                options,
-                            ),
-                        )
+                        // Patches → modified-files card; subagents → AgentChipPanel.
+                        is ItemFact.Patch, is ItemFact.Subagent -> Unit
                         else -> Unit
                     }
                 }
@@ -527,6 +548,7 @@ object TranscriptRenderer {
                 .replace(Regex("""(?i)(\s*<p>\s*(?:&nbsp;|\s|<br\s*/?\s*>)*\s*</p>)+\s*$"""), "")
                 .trim()
             linkifyInlineCode(rewriteMarkdownFileAnchors(colorizeFencedCode(cleaned, options.project)))
+                .let(::rewriteInlineCodeSpans)
         } catch (_: Throwable) {
             "<p>${escapeWithBreaks(text)}</p>"
         }
@@ -613,6 +635,28 @@ object TranscriptRenderer {
             }
         }
 
+    /**
+     * JBHtmlPane styles native `<code>` with the *editor* monospace size, which is often
+     * larger than the UI label font used for body text. Rewrite inline code to `.icode`
+     * spans so we own the size (same as body). Leave `<pre><code>` alone.
+     */
+    private fun rewriteInlineCodeSpans(html: String): String {
+        if (!html.contains("<code", ignoreCase = true)) return html
+        val preRanges = Regex("""(?is)<pre\b[^>]*>.*?</pre>""")
+            .findAll(html)
+            .map { it.range }
+            .toList()
+        return Regex(
+            """<code(?:\s[^>]*)?>([\s\S]*?)</code>""",
+            RegexOption.IGNORE_CASE,
+        ).replace(html) { match ->
+            if (preRanges.any { match.range.first in it }) {
+                return@replace match.value
+            }
+            """<span class="icode">${match.groupValues[1]}</span>"""
+        }
+    }
+
     /** Linkify file paths in inline `<code>` only — never rewrite fenced `<pre><code>` bodies. */
     private fun linkifyInlineCode(html: String): String {
         if (!html.contains("<code>", ignoreCase = true) && !html.contains("<code ", ignoreCase = true)) {
@@ -666,7 +710,7 @@ object TranscriptRenderer {
         <style type="text/css">
           body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            font-size: 13px;
+            font-size: ${CodexUiFonts.BODY_PX}px;
             color: $fg;
             margin: 8px 12px 16px 12px;
             line-height: 1.5;
@@ -703,7 +747,7 @@ object TranscriptRenderer {
             text-align: right;
           }
           a.action {
-            font-size: 14px;
+            font-size: ${CodexUiFonts.BODY_PX}px;
             color: $muted;
             text-decoration: none;
             padding: 0 2px;
@@ -715,14 +759,14 @@ object TranscriptRenderer {
             border-collapse: collapse;
           }
           a.cb-copy {
-            font-size: 13px;
+            font-size: ${CodexUiFonts.SECONDARY_PX}px;
             color: #9aa0a6;
             text-decoration: none;
             padding: 0 2px;
           }
           a.cb-copy:hover { color: $fg; }
           .role {
-            font-size: 11px;
+            font-size: ${CodexUiFonts.META_PX}px;
             font-weight: 600;
             color: $muted;
             margin: 0 0 4px 0;
@@ -757,7 +801,7 @@ object TranscriptRenderer {
           }
           .files-title {
             color: #e8e8e8;
-            font-size: 13px;
+            font-size: ${CodexUiFonts.BODY_PX}px;
             font-weight: 600;
             margin: 0 0 4px 0;
             letter-spacing: 0.01em;
@@ -766,17 +810,17 @@ object TranscriptRenderer {
             color: #8b949e;
             margin-right: 8px;
             font-family: "JetBrains Mono", Consolas, monospace;
-            font-size: 11px;
+            font-size: ${CodexUiFonts.META_PX}px;
           }
           .files-stats {
-            font-size: 12px;
+            font-size: ${CodexUiFonts.SECONDARY_PX}px;
             font-family: "JetBrains Mono", Consolas, monospace;
             margin: 0;
           }
           a.files-undo {
             color: #9aa0a6;
             text-decoration: none;
-            font-size: 12px;
+            font-size: ${CodexUiFonts.SECONDARY_PX}px;
             margin-right: 8px;
             padding: 4px 8px;
           }
@@ -784,7 +828,7 @@ object TranscriptRenderer {
           a.files-review {
             color: #e8e8e8;
             text-decoration: none;
-            font-size: 12px;
+            font-size: ${CodexUiFonts.SECONDARY_PX}px;
             font-weight: 500;
             background: #3d3d3d;
             border: 1px solid #555555;
@@ -802,7 +846,7 @@ object TranscriptRenderer {
           table.files-list td {
             padding: 8px 0;
             border-bottom: 1px solid #2f2f2f;
-            font-size: 12px;
+            font-size: ${CodexUiFonts.SECONDARY_PX}px;
             vertical-align: middle;
           }
           table.files-list tr:last-child td { border-bottom: none; }
@@ -813,7 +857,7 @@ object TranscriptRenderer {
           td.files-path a.file:hover { color: #58a6ff; }
           .files-dir {
             color: #8b949e;
-            font-size: 11.5px;
+            font-size: ${CodexUiFonts.META_PX}px;
           }
           .files-name {
             color: #e6edf3;
@@ -823,28 +867,28 @@ object TranscriptRenderer {
             white-space: nowrap;
             padding-left: 16px;
             font-family: "JetBrains Mono", Consolas, monospace;
-            font-size: 11.5px;
+            font-size: ${CodexUiFonts.META_PX}px;
           }
           a.think-toggle {
             display: inline-block;
             color: $muted;
             text-decoration: none;
-            font-size: 12px;
+            font-size: ${CodexUiFonts.SECONDARY_PX}px;
             padding: 2px 0 4px 0;
           }
           a.think-toggle:hover { color: $fg; }
           .think-label { margin-right: 6px; }
-          .think-chevron { font-size: 11px; }
+          .think-chevron { font-size: ${CodexUiFonts.META_PX}px; }
           .think-body {
             margin: 4px 0 8px 0;
             color: $muted;
-            font-size: 12.5px;
+            font-size: ${CodexUiFonts.SECONDARY_PX}px;
           }
           .think-body p { margin: 0 0 6px 0; }
           .act {
             margin: 3px 0 5px 2px;
             color: $muted;
-            font-size: 12px;
+            font-size: ${CodexUiFonts.SECONDARY_PX}px;
           }
           a.act-toggle {
             color: $muted;
@@ -863,7 +907,7 @@ object TranscriptRenderer {
             padding: 8px 10px;
             margin: 4px 0 8px 18px;
             font-family: "JetBrains Mono", Consolas, monospace;
-            font-size: 11.5px;
+            font-size: ${CodexUiFonts.BODY_PX}px;
             white-space: pre-wrap;
             color: $fg;
           }
@@ -872,25 +916,31 @@ object TranscriptRenderer {
             text-decoration: none;
           }
           a.file:hover { text-decoration: underline; }
-          .file-ico { margin-right: 4px; font-size: 11px; }
+          .file-ico { margin-right: 4px; font-size: ${CodexUiFonts.META_PX}px; }
           .md h1, .md h2, .md h3, .md h4 {
             color: $fg;
             font-weight: 700;
             margin: 10px 0 6px 0;
             line-height: 1.3;
+            font-size: ${CodexUiFonts.BODY_PX}px;
           }
-          .md h1 { font-size: 18px; }
-          .md h2 { font-size: 16px; }
-          .md h3 { font-size: 14px; }
+          .md, .md p, .md li, .md td, .md th, .md span, .md a, .md strong, .md em, .md b, .md i {
+            font-size: ${CodexUiFonts.BODY_PX}px;
+          }
           .md p { margin: 0 0 8px 0; }
           .md > :last-child { margin-bottom: 0 !important; }
           .md ul, .md ol { margin: 0 0 8px 18px; padding: 0; }
           .md li { margin: 3px 0; }
-          .md code {
+          /* Native code tags — keep in sync; prefer .icode for inline (see rewriteInlineCodeSpans). */
+          code, tt, samp {
             font-family: "JetBrains Mono", Consolas, monospace;
-            font-size: 11px;
+            font-size: ${CodexUiFonts.BODY_PX}px;
+          }
+          .icode, .md code {
+            font-family: "JetBrains Mono", Consolas, monospace;
+            font-size: ${CodexUiFonts.BODY_PX}px;
             background: $codeBg;
-            padding: 0 4px;
+            padding: 1px 4px;
             border-radius: 3px;
           }
           .md pre {
@@ -902,7 +952,7 @@ object TranscriptRenderer {
             line-height: 1.45;
             white-space: pre;
             font-family: "JetBrains Mono", Consolas, monospace;
-            font-size: 12px;
+            font-size: ${CodexUiFonts.BODY_PX}px;
             color: #d4d4d4;
           }
           table.cb-bar + pre {

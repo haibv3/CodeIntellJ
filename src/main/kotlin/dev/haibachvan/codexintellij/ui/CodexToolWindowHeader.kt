@@ -10,7 +10,6 @@ import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI
-import com.intellij.util.ui.UIUtil
 import javax.swing.JComponent
 import javax.swing.JLabel
 
@@ -68,7 +67,7 @@ internal object CodexToolWindowHeader {
 
     fun styleStatusLabel(label: JLabel) {
         label.foreground = JBColor.namedColor("Label.infoForeground", JBColor.GRAY)
-        label.font = UIUtil.getLabelFont().deriveFont(12f)
+        label.font = CodexUiFonts.secondary()
         label.border = JBUI.Borders.empty(0, 6, 0, 8)
     }
 }
