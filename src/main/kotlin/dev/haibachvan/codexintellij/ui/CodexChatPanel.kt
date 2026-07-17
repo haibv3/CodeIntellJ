@@ -26,9 +26,11 @@ import java.awt.datatransfer.StringSelection
 import java.util.function.Consumer
 import javax.swing.Box
 import javax.swing.BoxLayout
+import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.ScrollPaneConstants
 import javax.swing.SwingUtilities
+import javax.swing.Timer
 import javax.swing.event.HyperlinkEvent
 
 /**
@@ -51,6 +53,10 @@ class CodexChatPanel(
         horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
     }
     private var lastAppliedFingerprint: String? = null
+    private data class AppliedSlot(val fingerprint: String, val component: JComponent)
+    private val appliedSlots = ArrayList<AppliedSlot>()
+    /** Coalesce high-frequency streaming updates (~40ms). */
+    private var coalesceTimer: Timer? = null
 
     private fun newHtmlPane(): JBHtmlPane =
         JBHtmlPane(
@@ -153,6 +159,32 @@ class CodexChatPanel(
         latestState = state
         trackReasoningTiming(state)
         syncAutoExpandCollapse(state)
+        if (isStreamingActive(state)) {
+            if (coalesceTimer == null) {
+                coalesceTimer = Timer(RENDER_COALESCE_MS) {
+                    coalesceTimer = null
+                    enqueueTranscriptRender(latestState)
+                }.also {
+                    it.isRepeats = false
+                    it.start()
+                }
+            }
+        } else {
+            coalesceTimer?.stop()
+            coalesceTimer = null
+            enqueueTranscriptRender(state)
+        }
+    }
+
+    private fun isStreamingActive(state: NormalizedServerState): Boolean {
+        val active = model.activeTurnId ?: return false
+        val fact = state.turns[active] ?: return true
+        return fact.status != TurnStatus.COMPLETED &&
+            fact.status != TurnStatus.FAILED &&
+            fact.status != TurnStatus.INTERRUPTED
+    }
+
+    private fun enqueueTranscriptRender(state: NormalizedServerState) {
         val expanded = effectiveExpandedSections(state)
         val options = TranscriptRenderOptions(
             expandedReasoningIds = expanded,
@@ -161,6 +193,7 @@ class CodexChatPanel(
             activeTurnId = model.activeTurnId?.value,
             localNotices = model.notices(),
             project = project,
+            lightweightStreaming = isStreamingActive(state),
         )
         val thread = model.selectedThread
         val generation = ++renderGeneration
@@ -175,7 +208,7 @@ class CodexChatPanel(
                     ),
                 )
             }
-            val fingerprint = blocksFingerprint(blocks)
+            val fingerprint = TranscriptBlock.fingerprints(blocks).joinToString("|")
             SwingUtilities.invokeLater {
                 if (generation != renderGeneration) return@invokeLater
                 if (fingerprint == lastAppliedFingerprint) return@invokeLater
@@ -188,69 +221,107 @@ class CodexChatPanel(
         }
     }
 
-    private fun blocksFingerprint(blocks: List<TranscriptBlock>): String =
-        blocks.joinToString("|") { block ->
-            when (block) {
-                is TranscriptBlock.Html -> "h:${block.fragment.hashCode()}"
-                is TranscriptBlock.ModifiedFiles ->
-                    "f:${block.payload.threadId}:${block.payload.turnId}:${
-                        block.payload.files.joinToString { "${it.path}:${it.counts.added}:${it.counts.removed}" }
-                    }"
-                is TranscriptBlock.CodeFence ->
-                    "c:${block.language}:${block.code.hashCode()}"
-                is TranscriptBlock.AgentChip ->
-                    "a:${block.agentId}:${block.statusLabel}:${block.summary.hashCode()}"
+    private fun applyTranscriptBlocks(blocks: List<TranscriptBlock>) {
+        val width = transcriptScroll.viewport.width.coerceAtLeast(480)
+        val prints = TranscriptBlock.fingerprints(blocks)
+
+        var shared = 0
+        while (shared < appliedSlots.size &&
+            shared < blocks.size &&
+            appliedSlots[shared].fingerprint == prints[shared]
+        ) {
+            shared++
+        }
+
+        // Prefer in-place HTML update for the first differing slot (typical stream growth).
+        if (shared < blocks.size &&
+            shared < appliedSlots.size &&
+            blocks[shared] is TranscriptBlock.Html &&
+            appliedSlots[shared].component is JBHtmlPane
+        ) {
+            val pane = appliedSlots[shared].component as JBHtmlPane
+            updateHtmlPane(pane, (blocks[shared] as TranscriptBlock.Html).fragment, width)
+            appliedSlots[shared] = AppliedSlot(prints[shared], pane)
+            shared++
+            while (shared < appliedSlots.size &&
+                shared < blocks.size &&
+                appliedSlots[shared].fingerprint == prints[shared]
+            ) {
+                shared++
             }
         }
 
-    private fun applyTranscriptBlocks(blocks: List<TranscriptBlock>) {
-        transcriptHost.removeAll()
-        val width = transcriptScroll.viewport.width.coerceAtLeast(480)
-        for (block in blocks) {
-            when (block) {
-                is TranscriptBlock.Html -> {
-                    val pane = newHtmlPane()
-                    val html = HtmlSwingSafe.sanitize(TranscriptRenderer.wrapDocument(block.fragment))
-                    HtmlSwingSafe.disableBidi(pane)
-                    try {
-                        pane.text = html
-                    } catch (_: Throwable) {
-                        pane.text = html.replace(Regex("""</?font\b[^>]*>""", RegexOption.IGNORE_CASE), "")
-                    }
-                    HtmlSwingSafe.applyUniformContentFont(pane)
-                    pane.setSize(width, Short.MAX_VALUE.toInt())
-                    val pref = pane.preferredSize
-                    pane.preferredSize = Dimension(width, pref.height.coerceAtLeast(24))
-                    pane.maximumSize = Dimension(Integer.MAX_VALUE, pane.preferredSize.height)
-                    transcriptHost.add(pane)
-                }
-                is TranscriptBlock.ModifiedFiles -> {
-                    val card = ModifiedFilesCardPanel(
-                        project = project,
-                        payload = block.payload,
-                        onUndo = { undoPayload(it) },
-                        onReview = { reviewPayload(it) },
-                        onOpenFile = { openFile(it) },
-                    )
-                    card.maximumSize = Dimension(Integer.MAX_VALUE, card.preferredSize.height)
-                    transcriptHost.add(card)
-                }
-                is TranscriptBlock.CodeFence -> {
-                    val card = CodeFenceCardPanel(project, block.language, block.code)
-                    transcriptHost.add(card)
-                    card.doLayout()
-                    card.maximumSize = Dimension(Integer.MAX_VALUE, card.preferredSize.height)
-                }
-                is TranscriptBlock.AgentChip -> {
-                    val chip = AgentChipPanel(block.agentId, block.statusLabel, block.summary)
-                    chip.maximumSize = Dimension(Integer.MAX_VALUE, chip.preferredSize.height)
-                    transcriptHost.add(chip)
-                }
-            }
+        disposeSlotsFrom(shared)
+
+        for (i in shared until blocks.size) {
+            val component = createBlockComponent(blocks[i], width)
+            transcriptHost.add(component)
+            appliedSlots += AppliedSlot(prints[i], component)
         }
         transcriptHost.add(Box.createVerticalGlue())
         transcriptHost.revalidate()
         transcriptHost.repaint()
+    }
+
+    private fun disposeSlotsFrom(from: Int) {
+        while (transcriptHost.componentCount > from) {
+            val idx = transcriptHost.componentCount - 1
+            val component = transcriptHost.getComponent(idx)
+            transcriptHost.remove(idx)
+            when (component) {
+                is CodeFenceCardPanel -> component.dispose()
+                is JBHtmlPane -> component.dispose()
+            }
+        }
+        while (appliedSlots.size > from) {
+            appliedSlots.removeAt(appliedSlots.lastIndex)
+        }
+    }
+
+    private fun createBlockComponent(block: TranscriptBlock, width: Int): JComponent =
+        when (block) {
+            is TranscriptBlock.Html -> {
+                val pane = newHtmlPane()
+                updateHtmlPane(pane, block.fragment, width)
+                pane
+            }
+            is TranscriptBlock.ModifiedFiles -> {
+                val card = ModifiedFilesCardPanel(
+                    project = project,
+                    payload = block.payload,
+                    onUndo = { undoPayload(it) },
+                    onReview = { reviewPayload(it) },
+                    onOpenFile = { openFile(it) },
+                )
+                card.maximumSize = Dimension(Integer.MAX_VALUE, card.preferredSize.height)
+                card
+            }
+            is TranscriptBlock.CodeFence -> {
+                val card = CodeFenceCardPanel(project, block.language, block.code)
+                card.doLayout()
+                card.maximumSize = Dimension(Integer.MAX_VALUE, card.preferredSize.height)
+                card
+            }
+            is TranscriptBlock.AgentChip -> {
+                val chip = AgentChipPanel(block.agentId, block.statusLabel, block.summary)
+                chip.maximumSize = Dimension(Integer.MAX_VALUE, chip.preferredSize.height)
+                chip
+            }
+        }
+
+    private fun updateHtmlPane(pane: JBHtmlPane, fragment: String, width: Int) {
+        val html = HtmlSwingSafe.sanitize(TranscriptRenderer.wrapDocument(fragment))
+        HtmlSwingSafe.disableBidi(pane)
+        try {
+            pane.text = html
+        } catch (_: Throwable) {
+            pane.text = html.replace(Regex("""</?font\b[^>]*>""", RegexOption.IGNORE_CASE), "")
+        }
+        HtmlSwingSafe.applyUniformContentFont(pane)
+        pane.setSize(width, Short.MAX_VALUE.toInt())
+        val pref = pane.preferredSize
+        pane.preferredSize = Dimension(width, pref.height.coerceAtLeast(24))
+        pane.maximumSize = Dimension(Integer.MAX_VALUE, pane.preferredSize.height)
     }
 
     private fun isScrolledNearBottom(): Boolean {
@@ -683,7 +754,13 @@ class CodexChatPanel(
     }
 
     override fun dispose() {
+        coalesceTimer?.stop()
+        coalesceTimer = null
         service.serverStateStore().removeListener(stateListener)
-        transcriptHost.components.filterIsInstance<JBHtmlPane>().forEach { it.dispose() }
+        disposeSlotsFrom(0)
+    }
+
+    companion object {
+        private const val RENDER_COALESCE_MS = 40
     }
 }

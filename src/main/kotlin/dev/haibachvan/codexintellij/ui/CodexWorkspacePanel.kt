@@ -30,6 +30,7 @@ import java.awt.Font
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.util.function.Consumer
+import javax.swing.BorderFactory
 import javax.swing.DefaultListModel
 import javax.swing.JButton
 import javax.swing.JLabel
@@ -52,7 +53,7 @@ class CodexWorkspacePanel(
     private val stack = JPanel(cards)
     private val statusLabel = JBLabel("Chưa kết nối").also { CodexToolWindowHeader.styleStatusLabel(it) }
     private val agentStrip = JBLabel(" ").apply {
-        foreground = JBColor.GRAY
+        foreground = CodexUiTheme.muted
         font = CodexUiFonts.secondary()
         cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
         toolTipText = "Xem tác nhân / subagent"
@@ -163,11 +164,19 @@ class CodexWorkspacePanel(
     private fun buildHome(): JPanel {
         val page = JPanel(BorderLayout())
         val tasks = JPanel(BorderLayout()).apply {
-            border = JBUI.Borders.empty(4, 8, 0, 8)
-            add(JBLabel("Nhiệm vụ").apply { font = font.deriveFont(Font.BOLD) }, BorderLayout.WEST)
+            border = JBUI.Borders.empty(8, 12, 4, 12)
+            add(
+                JBLabel("Nhiệm vụ gần đây").apply {
+                    font = CodexUiFonts.title()
+                    foreground = CodexUiTheme.foreground
+                },
+                BorderLayout.WEST,
+            )
             add(JButton("Xem tất cả").also {
                 it.isBorderPainted = false
                 it.isContentAreaFilled = false
+                it.foreground = CodexUiTheme.accent
+                it.font = CodexUiFonts.secondary()
                 it.toolTipText = "Xem toàn bộ nhiệm vụ đã lưu"
                 it.addActionListener { showAllTasks() }
             }, BorderLayout.EAST)
@@ -178,12 +187,16 @@ class CodexWorkspacePanel(
         page.add(north, BorderLayout.NORTH)
 
         val empty = JPanel(BorderLayout()).apply {
-            border = JBUI.Borders.empty(24)
-            val mark = JLabel("<html><div style='text-align:center;color:gray'>" +
-                "<div style='font-size:28px'>⌘</div>" +
-                "<div style='margin-top:8px'>Codex sẵn sàng</div>" +
-                "<div style='margin-top:4px;font-size:${CodexUiFonts.SECONDARY_PX}px'>Mô tả nhiệm vụ bên dưới hoặc chọn một nhiệm vụ gần đây</div>" +
-                "</div></html>", SwingConstants.CENTER)
+            border = JBUI.Borders.empty(32, 24)
+            val mark = JLabel(
+                "<html><div style='text-align:center;color:${CodexUiTheme.css(CodexUiTheme.muted)}'>" +
+                    "<div style='font-size:22px;font-weight:600;color:${CodexUiTheme.css(CodexUiTheme.foreground)}'>Codex</div>" +
+                    "<div style='margin-top:10px;font-size:${CodexUiFonts.BODY_PX}px'>Sẵn sàng hỗ trợ trong IDE</div>" +
+                    "<div style='margin-top:6px;font-size:${CodexUiFonts.SECONDARY_PX}px'>" +
+                    "Mô tả nhiệm vụ bên dưới hoặc mở một nhiệm vụ gần đây</div>" +
+                    "</div></html>",
+                SwingConstants.CENTER,
+            )
             add(mark, BorderLayout.CENTER)
         }
         page.add(empty, BorderLayout.CENTER)
@@ -194,8 +207,14 @@ class CodexWorkspacePanel(
     private fun buildChatPage(): JPanel {
         val page = JPanel(BorderLayout())
         val header = JPanel(BorderLayout()).apply {
-            border = JBUI.Borders.empty(4, 8, 4, 8)
+            border = BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, CodexUiTheme.cardDivider),
+                JBUI.Borders.empty(6, 8, 6, 8),
+            )
             add(JButton("←").also {
+                it.isBorderPainted = false
+                it.isContentAreaFilled = false
+                it.font = CodexUiFonts.body()
                 it.toolTipText = "Về danh sách nhiệm vụ"
                 it.addActionListener {
                     model.selectThread(null)
@@ -204,10 +223,16 @@ class CodexWorkspacePanel(
                     refreshTasks(service.serverStateStore().snapshot())
                 }
             }, BorderLayout.WEST)
-            chatTitle.font = CodexUiFonts.body(Font.BOLD)
+            chatTitle.font = CodexUiFonts.title()
+            chatTitle.foreground = CodexUiTheme.foreground
+            chatTitle.border = JBUI.Borders.empty(0, 8)
             add(chatTitle, BorderLayout.CENTER)
             add(
                 JButton("Copy").also { btn ->
+                    btn.isBorderPainted = false
+                    btn.isContentAreaFilled = false
+                    btn.foreground = CodexUiTheme.muted
+                    btn.font = CodexUiFonts.secondary()
                     btn.toolTipText = "Sao chép phản hồi Codex gần nhất"
                     btn.addActionListener {
                         if (!chat.copyLastAgentReply()) {
@@ -218,7 +243,11 @@ class CodexWorkspacePanel(
                             )
                         } else {
                             btn.text = "Đã copy"
-                            javax.swing.Timer(1200) { btn.text = "Copy" }.also {
+                            btn.foreground = CodexUiTheme.success
+                            javax.swing.Timer(1200) {
+                                btn.text = "Copy"
+                                btn.foreground = CodexUiTheme.muted
+                            }.also {
                                 it.isRepeats = false
                                 it.start()
                             }

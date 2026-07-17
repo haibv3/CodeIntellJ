@@ -9,10 +9,8 @@ import com.intellij.openapi.fileTypes.PlainTextFileType
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
 import com.intellij.ui.EditorTextField
-import com.intellij.ui.JBColor
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
-import java.awt.Color
 import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.Graphics
@@ -37,10 +35,10 @@ class CodeFenceCardPanel(
     private val code: String,
 ) : JPanel(BorderLayout()), Disposable {
     private val arc = 14f
-    private val cardBg = JBColor(Color(0x2B2B2B), Color(0x2B2B2B))
-    private val borderColor = JBColor(Color(0x454545), Color(0x454545))
-    private val muted = JBColor(Color(0xA0A0A0), Color(0xA0A0A0))
-    private val fg = JBColor(Color(0xEDEDED), Color(0xEDEDED))
+    private val cardBg = CodexUiTheme.cardBg
+    private val borderColor = CodexUiTheme.cardBorder
+    private val muted = CodexUiTheme.muted
+    private val fg = CodexUiTheme.foreground
     private val editorField: EditorTextField
     private val copyGlyph = "\u29C9"
 
@@ -141,10 +139,10 @@ class CodeFenceCardPanel(
                 // Top/bottom inset so glyph ascenders/descenders are not clipped.
                 editor.setBorder(JBUI.Borders.empty(6, 2, 6, 2))
                 editor.contentComponent.border = JBUI.Borders.empty(2, 0, 2, 0)
-                editor.backgroundColor = Color(0x2B2B2B)
+                editor.backgroundColor = CodexUiTheme.cardBg
                 editor.colorsScheme.setColor(
                     com.intellij.openapi.editor.colors.EditorColors.READONLY_FRAGMENT_BACKGROUND_COLOR,
-                    Color(0x2B2B2B),
+                    CodexUiTheme.cardBg,
                 )
                 editor.scrollingModel.scroll(0, 0)
                 editor.colorsScheme.editorFontSize = CodexUiFonts.BODY_PX

@@ -7,7 +7,6 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.ui.JBColor
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextArea
@@ -16,7 +15,6 @@ import dev.haibachvan.codexintellij.settings.ApprovalModeOption
 import dev.haibachvan.codexintellij.settings.CodexModelOption
 import dev.haibachvan.codexintellij.settings.ModelCatalog
 import java.awt.BorderLayout
-import java.awt.Color
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Graphics
@@ -101,7 +99,8 @@ class CodexComposerBar(
     }
     private val attachmentsStrip = ComposerAttachmentsStrip()
     private val hint = JBLabel(placeholder).apply {
-        foreground = JBColor.GRAY
+        foreground = CodexUiTheme.muted
+        font = CodexUiFonts.secondary()
         border = JBUI.Borders.empty(0, 12, 4, 12)
     }
 
@@ -115,15 +114,17 @@ class CodexComposerBar(
         border = JBUI.Borders.empty(8, 10, 10, 10)
         val card = JPanel(BorderLayout()).apply {
             border = BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(JBColor.border(), 1, true),
-                JBUI.Borders.empty(4, 4, 6, 4),
+                BorderFactory.createLineBorder(CodexUiTheme.cardBorder, 1, true),
+                JBUI.Borders.empty(6, 6, 8, 6),
             )
-            background = JBColor.background()
+            background = CodexUiTheme.cardBg
         }
         card.add(attachmentsStrip, BorderLayout.NORTH)
         card.add(JScrollPane(composer).apply {
             border = JBUI.Borders.empty()
             preferredSize = Dimension(100, 72)
+            isOpaque = false
+            viewport.isOpaque = false
         }, BorderLayout.CENTER)
         card.add(buildToolbar(), BorderLayout.SOUTH)
         add(hint, BorderLayout.NORTH)
@@ -404,13 +405,13 @@ class CodexComposerBar(
             val x = (width - size) / 2
             val y = (height - size) / 2
             val fill = if (model.isEnabled) {
-                JBColor(Color(0xD8D8D8), Color(0xD0D0D0))
+                CodexUiTheme.sendButtonFill
             } else {
-                JBColor(Color(0x888888), Color(0x555555))
+                CodexUiTheme.sendButtonDisabled
             }
             g2.color = fill
             g2.fillOval(x, y, size, size)
-            g2.color = JBColor(Color(0x2B2B2B), Color(0x2B2B2B))
+            g2.color = CodexUiTheme.sendButtonGlyph
             if (busy) {
                 val sq = (size * 0.34).toInt().coerceAtLeast(6)
                 val sx = x + (size - sq) / 2

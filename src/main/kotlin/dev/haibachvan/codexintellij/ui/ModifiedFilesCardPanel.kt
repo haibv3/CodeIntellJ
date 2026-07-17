@@ -2,11 +2,9 @@ package dev.haibachvan.codexintellij.ui
 
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
-import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
-import java.awt.Color
 import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.FlowLayout
@@ -38,13 +36,13 @@ class ModifiedFilesCardPanel(
     private val onOpenFile: (String) -> Unit,
 ) : JPanel(BorderLayout()) {
     private val arc = 14f
-    private val cardBg = JBColor(Color(0x2B2B2B), Color(0x2B2B2B))
-    private val borderColor = JBColor(Color(0x454545), Color(0x454545))
-    private val divider = JBColor(Color(0x3A3A3A), Color(0x3A3A3A))
-    private val muted = JBColor(Color(0xA0A0A0), Color(0xA0A0A0))
-    private val fg = JBColor(Color(0xEDEDED), Color(0xEDEDED))
-    private val green = JBColor(Color(0x3FB950), Color(0x3FB950))
-    private val red = JBColor(Color(0xF85149), Color(0xF85149))
+    private val cardBg = CodexUiTheme.cardBg
+    private val borderColor = CodexUiTheme.cardBorder
+    private val divider = CodexUiTheme.cardDivider
+    private val muted = CodexUiTheme.muted
+    private val fg = CodexUiTheme.foreground
+    private val green = CodexUiTheme.success
+    private val red = CodexUiTheme.danger
 
     init {
         isOpaque = false
@@ -155,7 +153,7 @@ class ModifiedFilesCardPanel(
             pathLabel.addMouseListener(object : MouseAdapter() {
                 override fun mouseClicked(e: MouseEvent?) = onOpenFile(file.path)
                 override fun mouseEntered(e: MouseEvent?) {
-                    pathLabel.foreground = JBColor(Color(0x58A6FF), Color(0x58A6FF))
+                    pathLabel.foreground = CodexUiTheme.accent
                 }
                 override fun mouseExited(e: MouseEvent?) {
                     pathLabel.foreground = muted
@@ -194,11 +192,11 @@ class ModifiedFilesCardPanel(
             override fun paintComponent(g: Graphics) {
                 val g2 = g.create() as Graphics2D
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-                g2.color = Color(0x3A3A3A)
+                g2.color = CodexUiTheme.codeBg
                 g2.fill(RoundRectangle2D.Float(1f, 1f, width - 2f, height - 2f, 7f, 7f))
-                g2.color = Color(0x6A6A6A)
+                g2.color = CodexUiTheme.cardBorder
                 g2.draw(RoundRectangle2D.Float(1f, 1f, width - 2f, height - 2f, 7f, 7f))
-                g2.color = Color(0xC9D1D9)
+                g2.color = CodexUiTheme.foreground
                 g2.font = CodexUiFonts.secondary(Font.BOLD)
                 val fm = g2.fontMetrics
                 val s = "+"
@@ -254,10 +252,10 @@ class ModifiedFilesCardPanel(
             override fun paintComponent(g: Graphics) {
                 val g2 = g.create() as Graphics2D
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-                val bg = if (model.isRollover) Color(0x4A4A4A) else Color(0x383838)
+                val bg = if (model.isRollover) CodexUiTheme.cardBorder else CodexUiTheme.codeBg
                 g2.color = bg
                 g2.fill(RoundRectangle2D.Float(0.5f, 0.5f, width - 1f, height - 1f, 10f, 10f))
-                g2.color = Color(0x6A6A6A)
+                g2.color = CodexUiTheme.cardBorder
                 g2.draw(RoundRectangle2D.Float(0.5f, 0.5f, width - 1f, height - 1f, 10f, 10f))
                 g2.dispose()
                 super.paintComponent(g)
@@ -274,9 +272,9 @@ private class DiffSparkline(
     private val removed: Int,
     private val barWidth: Int,
 ) : JComponent() {
-    private val green = Color(0x3FB950)
-    private val red = Color(0xF85149)
-    private val empty = Color(0x3A3A3A)
+    private val green = CodexUiTheme.success
+    private val red = CodexUiTheme.danger
+    private val empty = CodexUiTheme.cardDivider
 
     init {
         preferredSize = Dimension(barWidth, 10)

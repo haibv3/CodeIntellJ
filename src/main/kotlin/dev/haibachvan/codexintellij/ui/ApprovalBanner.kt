@@ -6,6 +6,7 @@ import dev.haibachvan.codexintellij.session.ApprovalOutcomeStatus
 import dev.haibachvan.codexintellij.session.ApprovalRequest
 import java.awt.BorderLayout
 import java.awt.FlowLayout
+import javax.swing.BorderFactory
 import javax.swing.JButton
 import javax.swing.JPanel
 
@@ -13,16 +14,25 @@ class ApprovalBanner(
     private val onAccept: (ApprovalRequest) -> Unit = {},
     private val onReject: (ApprovalRequest) -> Unit = {},
 ) : JPanel(BorderLayout()) {
-    private val label = JBLabel("No pending approvals")
+    private val label = JBLabel("No pending approvals").apply {
+        font = CodexUiFonts.secondary()
+        foreground = CodexUiTheme.foreground
+    }
     private val accept = JButton("Accept")
     private val reject = JButton("Reject")
     private var current: ApprovalRequest? = null
 
     init {
         isVisible = false
-        border = JBUI.Borders.empty(6, 8)
+        isOpaque = true
+        background = CodexUiTheme.approvalBg
+        border = BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(0, 0, 1, 0, CodexUiTheme.approvalBorder),
+            JBUI.Borders.empty(8, 12),
+        )
         add(label, BorderLayout.CENTER)
         val actions = JPanel(FlowLayout(FlowLayout.RIGHT, 6, 0)).apply {
+            isOpaque = false
             add(accept)
             add(reject)
         }

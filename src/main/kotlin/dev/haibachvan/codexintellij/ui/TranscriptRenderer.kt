@@ -2,13 +2,11 @@ package dev.haibachvan.codexintellij.ui
 
 import com.intellij.markdown.utils.MarkdownToHtmlConverter
 import com.intellij.openapi.project.Project
-import com.intellij.ui.JBColor
 import dev.haibachvan.codexintellij.session.ItemFact
 import dev.haibachvan.codexintellij.session.ItemStatus
 import dev.haibachvan.codexintellij.session.NormalizedServerState
 import dev.haibachvan.codexintellij.session.ThreadId
 import dev.haibachvan.codexintellij.session.resolvedChanges
-import java.awt.Color
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 
 /** UI options for transcript HTML (expand/collapse, timing labels). */
@@ -25,6 +23,11 @@ data class TranscriptRenderOptions(
     val localNotices: List<ChatPanelModel.LocalNotice> = emptyList(),
     /** Needed for IDE lexer-based fence coloring. */
     val project: Project? = null,
+    /**
+     * Skip expensive IDE lexer fence coloring while the active agent message streams.
+     * Completed messages keep full fidelity.
+     */
+    val lightweightStreaming: Boolean = false,
 )
 
 /** Renders normalized server state as themed HTML matching Codex IDE chat layout. */
@@ -547,8 +550,11 @@ object TranscriptRenderer {
             val cleaned = html
                 .replace(Regex("""(?i)(\s*<p>\s*(?:&nbsp;|\s|<br\s*/?\s*>)*\s*</p>)+\s*$"""), "")
                 .trim()
-            linkifyInlineCode(rewriteMarkdownFileAnchors(colorizeFencedCode(cleaned, options.project)))
-                .let(::rewriteInlineCodeSpans)
+            linkifyInlineCode(
+                rewriteMarkdownFileAnchors(
+                    colorizeFencedCode(cleaned, options.project, options.lightweightStreaming),
+                ),
+            ).let(::rewriteInlineCodeSpans)
         } catch (_: Throwable) {
             "<p>${escapeWithBreaks(text)}</p>"
         }
@@ -558,8 +564,10 @@ object TranscriptRenderer {
      * Color fenced code inside native `<pre><code>`, and add a small toolbar
      * *above* the pre (lang + copy). Never wrap `<pre>` inside `<table>` —
      * that caused JBHtmlPane Bidi crashes.
+     *
+     * When [lightweight] is true (active stream), skip IDE lexer highlighting.
      */
-    private fun colorizeFencedCode(html: String, project: Project?): String {
+    private fun colorizeFencedCode(html: String, project: Project?, lightweight: Boolean): String {
         if (!html.contains("<pre", ignoreCase = true)) return html
         return try {
             Regex(
@@ -583,17 +591,22 @@ object TranscriptRenderer {
                     .split(Regex("\\s+"))
                     .map { it.removePrefix("language-").removePrefix("lang-") }
                     .firstOrNull { it.isNotBlank() && it != "hljs" && it != "act-code" }
-                val colored = CodeFenceHighlighter.toHtml(project, clipped, langToken)
+                val colored = if (lightweight) {
+                    escape(clipped)
+                } else {
+                    CodeFenceHighlighter.toHtml(project, clipped, langToken)
+                }
                 if ("act-code" in preAttrs || "act-code" in codeAttrs) {
                     return@replace """<pre$preAttrs><code$codeAttrs>$colored</code></pre>"""
                 }
                 val display = (langToken ?: "code").lowercase()
                 val copyId = CodeBlockClipboard.put(code)
+                val mutedCss = CodexUiTheme.css(CodexUiTheme.muted)
                 // Toolbar is a sibling above <pre>, not a wrapper around it.
                 """
                 <table class="cb-bar" width="100%" cellpadding="0" cellspacing="0">
                   <tr>
-                    <td align="left"><font color="#9aa0a6" size="2">${escape(display)}</font></td>
+                    <td align="left"><font color="$mutedCss" size="2">${escape(display)}</font></td>
                     <td align="right"><a class="cb-copy" href="codex-copy-code:${escapeAttr(copyId)}" title="Copy">$COPY_GLYPH</a></td>
                   </tr>
                 </table>
@@ -698,12 +711,17 @@ object TranscriptRenderer {
     private fun document(body: String): String = wrapDocument(body)
 
     fun wrapDocument(body: String): String {
-        val fg = css(JBColor.foreground())
-        val muted = css(JBColor.GRAY)
-        val bubble = css(JBColor(Color(0x3A3A3A), Color(0x3A3A3A)))
-        val bubbleFg = css(JBColor(Color(0xE8E8E8), Color(0xE8E8E8)))
-        val codeBg = css(JBColor(Color(0x2F2F2F), Color(0x2F2F2F)))
-        val border = css(JBColor.border())
+        val fg = CodexUiTheme.css(CodexUiTheme.foreground)
+        val muted = CodexUiTheme.css(CodexUiTheme.muted)
+        val bubble = CodexUiTheme.css(CodexUiTheme.bubbleBg)
+        val bubbleFg = CodexUiTheme.css(CodexUiTheme.bubbleFg)
+        val codeBg = CodexUiTheme.css(CodexUiTheme.codeBg)
+        val codeFg = CodexUiTheme.css(CodexUiTheme.codeFg)
+        val border = CodexUiTheme.css(CodexUiTheme.border)
+        val cardBg = CodexUiTheme.css(CodexUiTheme.cardBg)
+        val cardBorder = CodexUiTheme.css(CodexUiTheme.cardBorder)
+        val divider = CodexUiTheme.css(CodexUiTheme.cardDivider)
+        val accent = CodexUiTheme.css(CodexUiTheme.accent)
         return """
         <html>
         <head>
@@ -715,7 +733,7 @@ object TranscriptRenderer {
             margin: 8px 12px 16px 12px;
             line-height: 1.5;
           }
-          .empty { color: $muted; margin-top: 16px; }
+          .empty { color: $muted; margin-top: 24px; text-align: center; }
           .muted { color: $muted; }
           .row { margin: 0 0 16px 0; }
           .row.user {
@@ -760,7 +778,7 @@ object TranscriptRenderer {
           }
           a.cb-copy {
             font-size: ${CodexUiFonts.SECONDARY_PX}px;
-            color: #9aa0a6;
+            color: $muted;
             text-decoration: none;
             padding: 0 2px;
           }
@@ -786,8 +804,8 @@ object TranscriptRenderer {
           .row.files-card {
             margin: 10px 0 20px 0;
             padding: 12px 14px 8px 14px;
-            background: #252526;
-            border: 1px solid #3c3c3c;
+            background: $cardBg;
+            border: 1px solid $cardBorder;
             border-radius: 8px;
           }
           table.files-head, table.files-list {
@@ -800,14 +818,14 @@ object TranscriptRenderer {
             white-space: nowrap;
           }
           .files-title {
-            color: #e8e8e8;
+            color: $fg;
             font-size: ${CodexUiFonts.BODY_PX}px;
             font-weight: 600;
             margin: 0 0 4px 0;
             letter-spacing: 0.01em;
           }
           .files-ico {
-            color: #8b949e;
+            color: $muted;
             margin-right: 8px;
             font-family: "JetBrains Mono", Consolas, monospace;
             font-size: ${CodexUiFonts.META_PX}px;
@@ -818,49 +836,48 @@ object TranscriptRenderer {
             margin: 0;
           }
           a.files-undo {
-            color: #9aa0a6;
+            color: $muted;
             text-decoration: none;
             font-size: ${CodexUiFonts.SECONDARY_PX}px;
             margin-right: 8px;
             padding: 4px 8px;
           }
-          a.files-undo:hover { color: #e8e8e8; }
+          a.files-undo:hover { color: $fg; }
           a.files-review {
-            color: #e8e8e8;
+            color: $fg;
             text-decoration: none;
             font-size: ${CodexUiFonts.SECONDARY_PX}px;
             font-weight: 500;
-            background: #3d3d3d;
-            border: 1px solid #555555;
+            background: $codeBg;
+            border: 1px solid $cardBorder;
             padding: 4px 12px;
             border-radius: 6px;
           }
           a.files-review:hover {
-            background: #4a4a4a;
-            border-color: #6a6a6a;
+            border-color: $muted;
           }
           table.files-list {
             margin-top: 2px;
-            border-top: 1px solid #333333;
+            border-top: 1px solid $divider;
           }
           table.files-list td {
             padding: 8px 0;
-            border-bottom: 1px solid #2f2f2f;
+            border-bottom: 1px solid $divider;
             font-size: ${CodexUiFonts.SECONDARY_PX}px;
             vertical-align: middle;
           }
           table.files-list tr:last-child td { border-bottom: none; }
           td.files-path a.file {
-            color: #c9d1d9;
+            color: $fg;
             text-decoration: none;
           }
-          td.files-path a.file:hover { color: #58a6ff; }
+          td.files-path a.file:hover { color: $accent; }
           .files-dir {
-            color: #8b949e;
+            color: $muted;
             font-size: ${CodexUiFonts.META_PX}px;
           }
           .files-name {
-            color: #e6edf3;
+            color: $fg;
             font-weight: 500;
           }
           td.files-delta {
@@ -912,7 +929,7 @@ object TranscriptRenderer {
             color: $fg;
           }
           a.file {
-            color: #589DF6;
+            color: $accent;
             text-decoration: none;
           }
           a.file:hover { text-decoration: underline; }
@@ -944,7 +961,7 @@ object TranscriptRenderer {
             border-radius: 3px;
           }
           .md pre {
-            background: #2b2b2b;
+            background: $codeBg;
             border: 1px solid $border;
             border-radius: 10px;
             padding: 12px 14px;
@@ -953,13 +970,13 @@ object TranscriptRenderer {
             white-space: pre;
             font-family: "JetBrains Mono", Consolas, monospace;
             font-size: ${CodexUiFonts.BODY_PX}px;
-            color: #d4d4d4;
+            color: $codeFg;
           }
           table.cb-bar + pre {
             margin-top: 2px;
           }
           .md pre code {
-            background: #2b2b2b;
+            background: $codeBg;
             padding: 0;
             margin: 0;
             border: none;
@@ -973,7 +990,7 @@ object TranscriptRenderer {
             font-family: inherit;
             font-size: inherit;
           }
-          .md a { color: #589DF6; }
+          .md a { color: $accent; }
           .md strong { font-weight: 700; color: $fg; }
           .md blockquote {
             border-left: 3px solid $border;
@@ -988,9 +1005,6 @@ object TranscriptRenderer {
         </html>
         """.trimIndent()
     }
-
-    private fun css(color: Color): String =
-        String.format("#%02x%02x%02x", color.red, color.green, color.blue)
 
     private fun escape(text: String): String =
         text.replace("&", "&amp;")
