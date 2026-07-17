@@ -194,9 +194,9 @@ class CodexProjectService(
         accountController = AccountController(g)
     }
 
+    /** Global trust store — one confirmed Codex binary for all projects. */
     private fun trustStorePath(): Path {
-        val dir = Path.of(FileUtil.toSystemIndependentName(project.basePath ?: System.getProperty("user.home")))
-            .resolve(".codex-intellij")
+        val dir = Path.of(System.getProperty("user.home"), ".codex-intellij")
         return dir.resolve("confirmed-binary.store")
     }
 
