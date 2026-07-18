@@ -1,11 +1,13 @@
 package dev.haibachvan.codexintellij.appserver
 
+import com.google.gson.JsonObject
 import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Single sequencing lane for all RPC responses, notifications, server requests, and snapshots.
  * Assigns arrival sequence and request watermark; coalesces only keyed deltas.
+ * Text/output deltas concatenate chunks on coalesce so streaming text stays lossless.
  */
 class ProtocolSequencer(
     private val policy: BackpressurePolicy = BackpressurePolicy(),
@@ -28,7 +30,7 @@ class ProtocolSequencer(
         requestWatermark: Long = currentRequestWatermark(),
         coalesceKey: CoalesceKey? = null,
     ): SequencedEvent {
-        val event = SequencedEvent(
+        var event = SequencedEvent(
             epoch = epoch,
             arrivalSeq = arrival.incrementAndGet(),
             requestWatermark = requestWatermark,
@@ -42,6 +44,8 @@ class ProtocolSequencer(
                 val previous = coalesceIndex.put(key, event)
                 if (previous != null) {
                     queue.remove(previous)
+                    event = concatenateDeltaPayload(previous, event)
+                    coalesceIndex[key] = event
                 }
                 queue.addLast(event)
             } else {
@@ -50,6 +54,44 @@ class ProtocolSequencer(
             trimIfNeeded()
         }
         return event
+    }
+
+    /**
+     * Latest-wins coalesce must not drop earlier text chunks. Agent streaming sends
+     * incremental deltas; concatenating preserved chunks keeps the store lossless under backlog.
+     */
+    private fun concatenateDeltaPayload(previous: SequencedEvent, next: SequencedEvent): SequencedEvent {
+        val prevNote = previous.payload as? WireEnvelope.Notification ?: return next
+        val nextNote = next.payload as? WireEnvelope.Notification ?: return next
+        val prevChunk = deltaChunk(prevNote.params) ?: return next
+        val nextChunk = deltaChunk(nextNote.params) ?: return next
+        val mergedParams = (nextNote.params ?: JsonObject()).deepCopy()
+        writeDeltaChunk(mergedParams, prevChunk + nextChunk)
+        return next.copy(payload = nextNote.copy(params = mergedParams))
+    }
+
+    private fun deltaChunk(params: JsonObject?): String? {
+        if (params == null) return null
+        val delta = params.get("delta")
+        when {
+            delta != null && delta.isJsonPrimitive -> return delta.asString
+            delta != null && delta.isJsonObject -> {
+                val nested = delta.asJsonObject.get("text")
+                if (nested != null && nested.isJsonPrimitive) return nested.asString
+            }
+        }
+        val text = params.get("text")
+        return text?.takeIf { it.isJsonPrimitive }?.asString
+    }
+
+    private fun writeDeltaChunk(params: JsonObject, chunk: String) {
+        val delta = params.get("delta")
+        when {
+            delta != null && delta.isJsonPrimitive -> params.addProperty("delta", chunk)
+            delta != null && delta.isJsonObject -> delta.asJsonObject.addProperty("text", chunk)
+            params.has("text") -> params.addProperty("text", chunk)
+            else -> params.addProperty("delta", chunk)
+        }
     }
 
     fun poll(): SequencedEvent? =

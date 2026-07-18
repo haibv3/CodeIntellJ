@@ -190,14 +190,14 @@ class ConversationReducer(
             ?: nested?.string("type")
             ?: typeHintFromMethod(method)
             ?: "unknown"
-        val text = params.string("text")
-            ?: nested?.string("text")
+        val text = params.string("text")?.takeIf { it.isNotBlank() }
+            ?: nested?.string("text")?.takeIf { it.isNotBlank() }
             ?: extractUserMessageText(nested)
             ?: existingText(existing)
             ?: ""
         val item: ItemFact = when (type) {
             "user", "userMessage" -> ItemFact.UserMessage(itemId, threadId, turnId, status, rank, event.epoch, event.arrivalSeq, text)
-            "agent", "agentMessage", "assistant" -> ItemFact.AgentMessage(itemId, threadId, turnId, status, rank, event.epoch, event.arrivalSeq, text)
+            "agent", "agentMessage", "assistant", "plan" -> ItemFact.AgentMessage(itemId, threadId, turnId, status, rank, event.epoch, event.arrivalSeq, text)
             "reasoning" -> ItemFact.Reasoning(
                 itemId, threadId, turnId, status, rank, event.epoch, event.arrivalSeq,
                 text.ifBlank { nested?.string("summary") ?: "" },
@@ -391,6 +391,16 @@ class ConversationReducer(
             return state.copy(items = state.items + (itemId to created))
         }
         if (existing.terminalRank >= TerminalRank.COMPLETED) {
+            // Some servers complete with empty text then continue deltas, or complete before
+            // coalesced backlog drains. Keep accepting agent text growth after COMPLETED.
+            if (existing is ItemFact.AgentMessage && delta.isNotEmpty()) {
+                val updated = existing.copy(
+                    text = existing.text + delta,
+                    arrivalSeq = event.arrivalSeq,
+                    epoch = event.epoch,
+                )
+                return state.copy(items = state.items + (itemId to updated))
+            }
             return state
         }
         val updated = when (existing) {

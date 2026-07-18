@@ -3,6 +3,7 @@ package dev.haibachvan.codexintellij.appserver
 /**
  * Drain-first backpressure: non-droppable control/terminal/response events are retained;
  * only keyed text/output/diff deltas may coalesce to the latest value.
+ * Coalesced text deltas concatenate chunks (see [ProtocolSequencer]) so content is not lost.
  */
 class BackpressurePolicy {
     fun isNonDroppable(kind: SequencedEventKind): Boolean =

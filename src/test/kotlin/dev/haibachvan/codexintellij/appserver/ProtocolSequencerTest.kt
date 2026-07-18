@@ -43,6 +43,35 @@ class ProtocolSequencerTest {
     }
 
     @Test
+    fun `coalesced text deltas concatenate chunks instead of dropping them`() {
+        val sequencer = ProtocolSequencer()
+        val key = CoalesceKey(epoch, "t1", "turn1", "item1", SequencedEventKind.TEXT_DELTA)
+        sequencer.enqueue(
+            epoch,
+            SequencedEventKind.TEXT_DELTA,
+            deltaNote("item/agentMessage/delta", "Hel"),
+            coalesceKey = key,
+        )
+        sequencer.enqueue(
+            epoch,
+            SequencedEventKind.TEXT_DELTA,
+            deltaNote("item/agentMessage/delta", "lo "),
+            coalesceKey = key,
+        )
+        sequencer.enqueue(
+            epoch,
+            SequencedEventKind.TEXT_DELTA,
+            deltaNote("item/agentMessage/delta", "world"),
+            coalesceKey = key,
+        )
+
+        val drained = sequencer.drain()
+        assertEquals(1, drained.size)
+        val params = (drained.single().payload as WireEnvelope.Notification).params!!
+        assertEquals("Hello world", params.get("delta").asString)
+    }
+
+    @Test
     fun `clearEpoch removes only matching epoch events`() {
         val sequencer = ProtocolSequencer()
         val e1 = ProcessEpoch(1)
@@ -57,6 +86,17 @@ class ProtocolSequencerTest {
 
     private fun note(method: String) =
         WireEnvelope.Notification(method, JsonObject())
+
+    private fun deltaNote(method: String, delta: String) =
+        WireEnvelope.Notification(
+            method,
+            JsonObject().apply {
+                addProperty("threadId", "t1")
+                addProperty("turnId", "turn1")
+                addProperty("itemId", "item1")
+                addProperty("delta", delta)
+            },
+        )
 
     private fun response(id: String) =
         WireEnvelope.Response(id, JsonObject(), null)

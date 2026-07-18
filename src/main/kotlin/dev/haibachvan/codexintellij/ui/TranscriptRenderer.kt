@@ -403,7 +403,8 @@ object TranscriptRenderer {
 
     /**
      * Progress / plan agent messages fold into the thinking section (no Copy).
-     * Only the last agent message is the visible result — while streaming, or after the turn ends.
+     * Only the last agent message is the visible result after the turn ends.
+     * While the turn is active, completed/progress notes stay inside thinking.
      */
     fun isInterimAgentMessage(
         item: ItemFact.AgentMessage,
@@ -477,14 +478,8 @@ object TranscriptRenderer {
                 }
                 continue
             }
-            val activityAfter = turnItems.any { other ->
-                isNonAgentActivity(other) &&
-                    (other.arrivalSeq > agent.arrivalSeq ||
-                        (other.arrivalSeq == agent.arrivalSeq && other.id.value > agent.id.value))
-            }
-            if (activityAfter) {
-                interim += agent.id.value
-            }
+            // After the turn ends, the last agent message is always the visible result.
+            // Late reasoning/command completions must not fold that reply into collapsed thinking.
         }
         return interim
     }

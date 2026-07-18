@@ -229,6 +229,120 @@ class ConversationReducerTest {
     }
 
     @Test
+    fun `blank completed text does not wipe streamed agent deltas`() {
+        var state = NormalizedServerState()
+        state = reducer.reduce(state, notification(1, "thread/started", obj("threadId" to "t1")))
+        state = reducer.reduce(
+            state,
+            SequencedEvent(
+                epoch, 2, 1, SequencedEventKind.TEXT_DELTA, null,
+                WireEnvelope.Notification(
+                    "item/agentMessage/delta",
+                    obj("threadId" to "t1", "turnId" to "u1", "itemId" to "i1", "delta" to "Hello"),
+                ),
+            ),
+        )
+        state = reducer.reduce(
+            state,
+            SequencedEvent(
+                epoch, 3, 2, SequencedEventKind.TEXT_DELTA, null,
+                WireEnvelope.Notification(
+                    "item/agentMessage/delta",
+                    obj("itemId" to "i1", "delta" to " world"),
+                ),
+            ),
+        )
+        // Protocol sometimes completes with an empty text placeholder after deltas.
+        val completedItem = JsonObject().apply {
+            addProperty("id", "i1")
+            addProperty("type", "agentMessage")
+            addProperty("text", "")
+        }
+        state = reducer.reduce(
+            state,
+            notification(
+                4,
+                "item/completed",
+                JsonObject().apply {
+                    addProperty("threadId", "t1")
+                    addProperty("turnId", "u1")
+                    add("item", completedItem)
+                },
+            ),
+        )
+        val agent = state.items[ItemId("i1")] as ItemFact.AgentMessage
+        assertEquals("Hello world", agent.text)
+        assertEquals(ItemStatus.COMPLETED, agent.status)
+    }
+
+    @Test
+    fun `deltas after blank completed still grow agent text`() {
+        var state = NormalizedServerState()
+        state = reducer.reduce(state, notification(1, "thread/started", obj("threadId" to "t1")))
+        val completedItem = JsonObject().apply {
+            addProperty("id", "i1")
+            addProperty("type", "agentMessage")
+            addProperty("text", "")
+        }
+        state = reducer.reduce(
+            state,
+            notification(
+                2,
+                "item/completed",
+                JsonObject().apply {
+                    addProperty("threadId", "t1")
+                    addProperty("turnId", "u1")
+                    add("item", completedItem)
+                },
+            ),
+        )
+        state = reducer.reduce(
+            state,
+            SequencedEvent(
+                epoch, 3, 1, SequencedEventKind.TEXT_DELTA, null,
+                WireEnvelope.Notification(
+                    "item/agentMessage/delta",
+                    obj("threadId" to "t1", "turnId" to "u1", "itemId" to "i1", "delta" to "Project "),
+                ),
+            ),
+        )
+        state = reducer.reduce(
+            state,
+            SequencedEvent(
+                epoch, 4, 2, SequencedEventKind.TEXT_DELTA, null,
+                WireEnvelope.Notification(
+                    "item/agentMessage/delta",
+                    obj("itemId" to "i1", "delta" to "là plugin Codex"),
+                ),
+            ),
+        )
+        val agent = state.items[ItemId("i1")] as ItemFact.AgentMessage
+        assertEquals("Project là plugin Codex", agent.text)
+        assertEquals(ItemStatus.COMPLETED, agent.status)
+    }
+
+    @Test
+    fun `plan items are stored as agent messages`() {
+        var state = NormalizedServerState()
+        state = reducer.reduce(state, notification(1, "thread/started", obj("threadId" to "t1")))
+        state = reducer.reduce(
+            state,
+            notification(
+                2,
+                "item/completed",
+                obj(
+                    "threadId" to "t1",
+                    "itemId" to "p1",
+                    "type" to "plan",
+                    "text" to "1. Đọc README\n2. Tóm tắt",
+                ),
+            ),
+        )
+        val agent = state.items[ItemId("p1")] as ItemFact.AgentMessage
+        assertEquals("1. Đọc README\n2. Tóm tắt", agent.text)
+    }
+
+    @Test
     fun `interleaved threads remain isolated`() {
         var state = NormalizedServerState()
         state = reducer.reduce(state, notification(1, "thread/started", obj("threadId" to "t1")))

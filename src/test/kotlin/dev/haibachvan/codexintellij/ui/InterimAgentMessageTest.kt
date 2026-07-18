@@ -89,4 +89,73 @@ class InterimAgentMessageTest {
         assertFalse(doneHtml.contains("codex-copy:a1"))
         assertFalse(doneHtml.contains("codex-copy:a2"))
     }
+
+    @Test
+    fun `final agent reply stays visible after turn when late reasoning arrives`() {
+        val store = ServerStateStore(ConversationReducer())
+        val epoch = ProcessEpoch(1)
+        var seq = 0L
+        fun notify(method: String, body: JsonObject.() -> Unit) {
+            seq += 1
+            store.dispatch(
+                SequencedEvent(
+                    epoch, seq, seq, SequencedEventKind.NOTIFICATION, null,
+                    WireEnvelope.Notification(method, JsonObject().apply(body)),
+                ),
+            )
+        }
+        notify("thread/started") { addProperty("threadId", "t1") }
+        notify("turn/started") {
+            addProperty("threadId", "t1")
+            addProperty("turnId", "turn1")
+        }
+        notify("item/started") {
+            addProperty("threadId", "t1")
+            addProperty("turnId", "turn1")
+            addProperty("itemId", "r1")
+            addProperty("type", "reasoning")
+            addProperty("text", "Đang đọc cấu trúc project…")
+        }
+        notify("item/completed") {
+            addProperty("threadId", "t1")
+            addProperty("turnId", "turn1")
+            addProperty("itemId", "a1")
+            addProperty("type", "agentMessage")
+            addProperty("text", "Project này là plugin Codex cho IntelliJ.")
+        }
+        // Late reasoning completion after the final answer — common in live streams.
+        notify("item/completed") {
+            addProperty("threadId", "t1")
+            addProperty("turnId", "turn1")
+            addProperty("itemId", "r1")
+            addProperty("type", "reasoning")
+            addProperty("text", "Đã đọc xong README và cấu trúc thư mục.")
+        }
+        notify("turn/completed") {
+            addProperty("threadId", "t1")
+            addProperty("turnId", "turn1")
+        }
+
+        val items = store.snapshot().items.values
+            .filter { it.threadId == ThreadId("t1") }
+            .sortedWith(compareBy({ it.arrivalSeq }, { it.id.value }))
+        val agent = items.filterIsInstance<ItemFact.AgentMessage>().single()
+
+        assertFalse(
+            TranscriptRenderer.isInterimAgentMessage(agent, items, activeTurnId = null),
+            "Final agent reply must remain visible after the turn ends even if reasoning finishes later",
+        )
+
+        val doneHtml = TranscriptRenderer.render(
+            store.snapshot(),
+            ThreadId("t1"),
+            TranscriptRenderOptions(),
+        )
+        assertTrue(doneHtml.contains("codex-copy:a1"), doneHtml)
+        assertTrue(
+            doneHtml.contains("Project này là plugin Codex") || doneHtml.contains("Codex"),
+            doneHtml,
+        )
+        assertTrue(doneHtml.contains("think-toggle") || doneHtml.contains("Đã hoạt động"), doneHtml)
+    }
 }
