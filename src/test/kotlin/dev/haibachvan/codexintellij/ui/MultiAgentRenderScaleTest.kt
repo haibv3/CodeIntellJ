@@ -12,7 +12,6 @@ import dev.haibachvan.codexintellij.session.ThreadId
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.system.measureNanoTime
-import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -20,6 +19,44 @@ import org.junit.jupiter.api.Test
  * Guards multi-agent ANR fixes: O(n) projection index + single embedded store owner.
  */
 class MultiAgentRenderScaleTest {
+    @Test
+    fun `standard workload notifies once per lossless store event`() {
+        val store = ServerStateStore(ConversationReducer())
+        var notifications = 0
+        store.addListener { notifications += 1 }
+
+        MultiAgentUiWorkload.events().forEach(store::dispatch)
+
+        assertTrue(notifications == MultiAgentUiWorkload.spec.eventCount)
+        assertTrue(store.snapshot().lastArrivalSeq == MultiAgentUiWorkload.spec.eventCount.toLong())
+        assertTrue(store.snapshot().agents.size == MultiAgentUiWorkload.spec.agentCount)
+    }
+
+    @Test
+    fun `standard workload materializes a bounded transcript window`() {
+        val blocks = TranscriptRenderer.renderBlocks(
+            MultiAgentUiWorkload.reduce(),
+            ThreadId("perf-thread"),
+        )
+
+        val slice = TranscriptViewportWindow.compute(
+            blocks = blocks,
+            viewportTop = Int.MAX_VALUE,
+            viewportHeight = 800,
+            heightOf = { 72 },
+        )
+
+        assertTrue(blocks.size == MultiAgentUiWorkload.spec.transcriptBlockCount)
+        assertTrue(
+            blocks.count { it is TranscriptBlock.PlainAgentMessage } ==
+                MultiAgentUiWorkload.spec.messageCount - 1,
+            "Plain multi-agent results must bypass Swing HTML parsing",
+        )
+        assertTrue(slice.blocks.size == TranscriptViewportWindow.TARGET_MATERIALIZED)
+        assertTrue(slice.blocks.size + 3 <= TranscriptViewportWindow.HARD_MAX_MATERIALIZED)
+        assertTrue(slice.endExclusive == blocks.size)
+    }
+
     @Test
     fun `projection index classification stays near-linear under multi-agent load`() {
         val smallItems = threadItems(buildMultiAgentState(agentCount = 40))
@@ -61,7 +98,7 @@ class MultiAgentRenderScaleTest {
     }
 
     @Test
-    fun `embedded chat does not self-subscribe when parent delivers state`() {
+    fun `embedded and standalone chat have exactly one bounded state delivery owner`() {
         val chatSrc = Files.readString(
             Path.of("src/main/kotlin/dev/haibachvan/codexintellij/ui/CodexChatPanel.kt"),
         )
@@ -69,23 +106,19 @@ class MultiAgentRenderScaleTest {
             Path.of("src/main/kotlin/dev/haibachvan/codexintellij/ui/CodexWorkspacePanel.kt"),
         )
         assertTrue(workspaceSrc.contains("embedded = true"))
-        assertTrue(workspaceSrc.contains("chat.renderExternal(state)"))
-        assertTrue(workspaceSrc.contains("serverStateStore().addListener(stateListener)"))
+        assertTrue(workspaceSrc.contains("UiStateBridge("))
+        assertTrue(workspaceSrc.contains("chat.renderExternal(delivery.state)"))
+        assertTrue(!workspaceSrc.contains("addListener(stateListener)"))
 
         val initBlock = chatSrc.substringAfter("init {").substringBefore("fun renderExternal")
         assertTrue(
             initBlock.contains("if (!embedded)"),
             "Standalone/embedded ownership must be gated in init",
         )
-        // addListener lives only inside the !embedded branch (with composer setup).
         val afterGate = initBlock.substringAfter("if (!embedded)")
-        assertTrue(afterGate.contains("addListener(stateListener)"))
-        // No unconditional addListener after the gated block closes.
-        val afterEmbeddedBlock = afterGate.substringAfter("addListener(stateListener)")
-        assertFalse(
-            afterEmbeddedBlock.contains("addListener(stateListener)"),
-            "Embedded CodexChatPanel must not also self-subscribe",
-        )
+        assertTrue(afterGate.contains("UiStateBridge("))
+        assertTrue(!chatSrc.contains("addListener(stateListener)"))
+        assertTrue(!chatSrc.contains("private val stateListener"))
     }
 
     @Test

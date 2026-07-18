@@ -5,6 +5,7 @@ import com.intellij.util.ui.JBUI
 import dev.haibachvan.codexintellij.session.ApprovalOutcomeStatus
 import dev.haibachvan.codexintellij.session.ApprovalRequest
 import java.awt.BorderLayout
+import java.awt.Dimension
 import java.awt.FlowLayout
 import javax.swing.BorderFactory
 import javax.swing.JButton
@@ -39,6 +40,10 @@ class ApprovalBanner(
         add(actions, BorderLayout.EAST)
         accept.addActionListener { current?.let(onAccept) }
         reject.addActionListener { current?.let(onReject) }
+        listOf(accept, reject).forEach { button ->
+            button.preferredSize = Dimension(button.preferredSize.width, CodexUiMetrics.control28)
+            button.getAccessibleContext().accessibleName = button.text
+        }
     }
 
     fun render(request: ApprovalRequest?) {

@@ -28,6 +28,15 @@ import java.nio.file.Path
 import kotlin.io.path.exists
 import kotlinx.coroutines.CoroutineScope
 
+internal fun resolveCodexTrustStorePath(userHome: String, overridePath: String?): Path {
+    val explicit = overridePath?.trim()?.takeIf { it.isNotEmpty() }
+    return if (explicit != null) {
+        Path.of(explicit).toAbsolutePath().normalize()
+    } else {
+        Path.of(userHome, ".codex-intellij", "confirmed-binary.store")
+    }
+}
+
 @Service(Service.Level.PROJECT)
 class CodexProjectService(
     private val project: Project,
@@ -206,10 +215,10 @@ class CodexProjectService(
     }
 
     /** Global trust store — one confirmed Codex binary for all projects. */
-    private fun trustStorePath(): Path {
-        val dir = Path.of(System.getProperty("user.home"), ".codex-intellij")
-        return dir.resolve("confirmed-binary.store")
-    }
+    private fun trustStorePath(): Path = resolveCodexTrustStorePath(
+        userHome = System.getProperty("user.home") ?: ".",
+        overridePath = System.getProperty("codex.trust.store"),
+    )
 
     private fun readSchemaRootPrefixes(): Pair<String?, String?> {
         return try {

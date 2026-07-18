@@ -20,6 +20,18 @@ object CodexUiTheme {
     val background: Color
         get() = JBColor.background()
 
+    val inputBackground: Color =
+        JBColor.namedColor(
+            "TextField.background",
+            JBColor(Color(0xFFFFFF), Color(0x1E1F22)),
+        )
+
+    val inputForeground: Color =
+        JBColor.namedColor(
+            "TextField.foreground",
+            JBColor(Color(0x1E1E1E), Color(0xDFE1E5)),
+        )
+
     /** Composer / transcript card fill. */
     val cardBg: Color =
         JBColor.namedColor(

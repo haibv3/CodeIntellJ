@@ -77,6 +77,7 @@ class CodexBinaryTrustPolicyTest {
             "LC_ALL" to "en_US.UTF-8",
             "TMPDIR" to "/tmp",
             "CODEX_HOME" to "/tmp/codex-home",
+            "CODEX_FIXTURE_SCENARIO" to "multi-agent-performance",
             "HTTP_PROXY" to "http://127.0.0.1:8080",
             "OPENAI_API_KEY" to "sk-secret",
             "CUSTOM_FLAG" to "preview-me",
@@ -91,6 +92,7 @@ class CodexBinaryTrustPolicyTest {
         assertEquals("/home/fixture", preview.inherited["HOME"])
         assertTrue(preview.inherited["PATH"]!!.split(':').contains("/usr/bin"))
         assertEquals("en_US.UTF-8", preview.inherited["LC_ALL"])
+        assertTrue(!preview.inherited.containsKey("CODEX_FIXTURE_SCENARIO"))
         assertTrue(!preview.inherited.containsKey("HTTP_PROXY"))
         assertTrue(!preview.inherited.containsKey("OPENAI_API_KEY"))
         assertTrue(preview.optedIn.isEmpty())

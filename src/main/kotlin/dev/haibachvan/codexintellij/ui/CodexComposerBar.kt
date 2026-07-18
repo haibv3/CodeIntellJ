@@ -1,5 +1,6 @@
 package dev.haibachvan.codexintellij.ui
 
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.project.Project
@@ -17,13 +18,11 @@ import dev.haibachvan.codexintellij.settings.ApprovalModeOption
 import dev.haibachvan.codexintellij.settings.CodexModelOption
 import dev.haibachvan.codexintellij.settings.ModelCatalog
 import java.awt.BorderLayout
+import java.awt.Component
 import java.awt.Cursor
 import java.awt.Dimension
-import java.awt.FlowLayout
 import java.awt.Graphics
 import java.awt.Graphics2D
-import java.awt.GridBagConstraints
-import java.awt.GridBagLayout
 import java.awt.Point
 import java.awt.RenderingHints
 import java.awt.event.KeyEvent
@@ -53,9 +52,16 @@ class CodexComposerBar(
         wrapStyleWord = true
         border = JBUI.Borders.empty(8, 10)
         font = JBUI.Fonts.label().deriveFont(CodexUiFonts.BODY)
+        background = CodexUiTheme.inputBackground
+        foreground = CodexUiTheme.inputForeground
+        caretColor = CodexUiTheme.inputForeground
         toolTipText = placeholder
+        getAccessibleContext().accessibleName = "Tin nhắn Codex"
+        getAccessibleContext().accessibleDescription = placeholder
     }
     private val modelCombo = ComboBox<CodexModelOption>().apply {
+        getAccessibleContext().accessibleName = "Mô hình"
+        getAccessibleContext().accessibleDescription = "Chọn mô hình Codex"
         renderer = object : javax.swing.DefaultListCellRenderer() {
             override fun getListCellRendererComponent(
                 list: javax.swing.JList<*>?,
@@ -82,15 +88,12 @@ class CodexComposerBar(
         accessibleName = "Quyền quyết định",
         toolTip = "Chọn chế độ phê duyệt lệnh và ghi tệp",
     )
-    private val plusButton = JButton("+").apply {
-        toolTipText = "Đính kèm tệp, mục tiêu, kế hoạch hoặc tác nhân"
-        isFocusable = true
-        isFocusPainted = true
-        preferredSize = Dimension(28, 28)
-        getAccessibleContext().accessibleName = "Mở menu đính kèm"
-        getAccessibleContext().accessibleDescription =
-            "Đính kèm tệp, thư mục, mục tiêu, kế hoạch hoặc tác nhân"
-    }
+    private val plusButton = CodexIconButton(
+        icon = AllIcons.General.Add,
+        tooltip = "Đính kèm tệp, mục tiêu, kế hoạch hoặc tác nhân",
+        accessibleName = "Mở menu đính kèm",
+        onClick = ::showPlusMenu,
+    )
     private val ideContext = JCheckBox("Ngữ cảnh IDE", panelModel.ideContextEnabled)
     private val actionButton = CircularActionButton().apply {
         preferredSize = Dimension(34, 34)
@@ -156,7 +159,6 @@ class CodexComposerBar(
         actionButton.addActionListener {
             if (busy) onCancel() else onSend()
         }
-        plusButton.addActionListener { showPlusMenu() }
         composer.inputMap.put(
             javax.swing.KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0),
             "codex-send",
@@ -448,32 +450,131 @@ class CodexComposerBar(
         }
 
     private fun buildToolbar(): JPanel {
-        val bar = JPanel(GridBagLayout())
-        val left = JPanel(FlowLayout(FlowLayout.LEFT, 6, 0)).apply {
+        return ResponsiveComposerToolbar(
+            plus = plusButton,
+            approval = approvalButton,
+            model = modelCombo,
+            effort = effortButton,
+            ideContext = ideContext,
+            action = actionButton,
+        )
+    }
+
+    private class ResponsiveComposerToolbar(
+        private val plus: Component,
+        private val approval: Component,
+        private val model: Component,
+        private val effort: Component,
+        private val ideContext: Component,
+        private val action: Component,
+    ) : JPanel(null) {
+        private val controls = listOf(plus, approval, model, effort, ideContext, action)
+        private var lastNarrow: Boolean? = null
+
+        init {
             isOpaque = false
-            add(plusButton)
-            add(approvalButton)
+            controls.forEach(::add)
         }
-        val right = JPanel(FlowLayout(FlowLayout.RIGHT, 6, 0)).apply {
-            isOpaque = false
-            add(modelCombo)
-            add(effortButton)
-            add(ideContext)
-            add(actionButton)
+
+        override fun getPreferredSize(): Dimension {
+            val availableWidth = width.takeIf { it > 0 }
+                ?: parent?.let { (it.width - it.insets.left - it.insets.right).takeIf { width -> width > 0 } }
+                ?: 0
+            return Dimension(
+                wideRequiredWidth(),
+                if (availableWidth == 0 || availableWidth < wideRequiredWidth()) narrowHeight() else rowHeight(),
+            )
         }
-        val c = GridBagConstraints().apply {
-            gridx = 0
-            gridy = 0
-            weightx = 1.0
-            fill = GridBagConstraints.HORIZONTAL
-            anchor = GridBagConstraints.WEST
+
+        override fun getMinimumSize(): Dimension = Dimension(0, narrowHeight())
+
+        override fun doLayout() {
+            val narrow = width < wideRequiredWidth()
+            if (lastNarrow != narrow) {
+                lastNarrow = narrow
+                javax.swing.SwingUtilities.invokeLater {
+                    revalidate()
+                    parent?.revalidate()
+                }
+            }
+            if (narrow) layoutNarrow() else layoutWide()
         }
-        bar.add(left, c)
-        c.gridx = 1
-        c.weightx = 0.0
-        c.anchor = GridBagConstraints.EAST
-        bar.add(right, c)
-        return bar
+
+        private fun layoutWide() {
+            val gap = CodexUiMetrics.space4
+            val rowHeight = rowHeight()
+            var leftX = 0
+            leftX = place(plus, leftX, 0, plus.preferredSize.width, rowHeight) + gap
+            place(approval, leftX, 0, approval.preferredSize.width, rowHeight)
+
+            val right = listOf(model, effort, ideContext, action)
+            var rightX = width - right.sumOf { it.preferredSize.width } - gap * (right.size - 1)
+            right.forEachIndexed { index, component ->
+                rightX = place(component, rightX, 0, component.preferredSize.width, rowHeight)
+                if (index < right.lastIndex) rightX += gap
+            }
+        }
+
+        private fun layoutNarrow() {
+            val gap = CodexUiMetrics.space4
+            val rowHeight = rowHeight()
+            val topWidths = fitTopRow(width, gap)
+            var topX = 0
+            listOf(model, effort, ideContext).forEachIndexed { index, component ->
+                topX = place(component, topX, 0, topWidths[index], rowHeight)
+                if (index < topWidths.lastIndex) topX += gap
+            }
+
+            val bottomY = rowHeight + CodexUiMetrics.space4
+            val fixedBottom = plus.preferredSize.width + action.preferredSize.width + gap * 2
+            val approvalWidth = approval.preferredSize.width.coerceAtMost((width - fixedBottom).coerceAtLeast(1))
+            var bottomX = 0
+            bottomX = place(plus, bottomX, bottomY, plus.preferredSize.width, rowHeight) + gap
+            bottomX = place(approval, bottomX, bottomY, approvalWidth, rowHeight) + gap
+            place(action, bottomX, bottomY, action.preferredSize.width, rowHeight)
+        }
+
+        private fun fitTopRow(availableWidth: Int, gap: Int): IntArray {
+            val widths = intArrayOf(
+                model.preferredSize.width,
+                effort.preferredSize.width,
+                ideContext.preferredSize.width,
+            )
+            val minimums = intArrayOf(
+                CodexUiMetrics.control24 * 3,
+                CodexUiMetrics.control24 * 4,
+                CodexUiMetrics.control24 * 3,
+            )
+            var overflow = (widths.sum() + gap * 2 - availableWidth).coerceAtLeast(0)
+            for (index in widths.indices) {
+                val shrink = minOf(overflow, (widths[index] - minimums[index]).coerceAtLeast(0))
+                widths[index] -= shrink
+                overflow -= shrink
+            }
+            if (overflow > 0) {
+                val ideIndex = widths.lastIndex
+                widths[ideIndex] = (widths[ideIndex] - overflow).coerceAtLeast(1)
+            }
+            return widths
+        }
+
+        private fun place(component: Component, x: Int, y: Int, width: Int, rowHeight: Int): Int {
+            val height = component.preferredSize.height.coerceAtMost(rowHeight)
+            component.setBounds(x, y + (rowHeight - height) / 2, width.coerceAtLeast(1), height)
+            return x + width.coerceAtLeast(1)
+        }
+
+        private fun wideRequiredWidth(): Int {
+            val gap = CodexUiMetrics.space4
+            val leftWidth = plus.preferredSize.width + gap + approval.preferredSize.width
+            val right = listOf(model, effort, ideContext, action)
+            val rightWidth = right.sumOf { it.preferredSize.width } + gap * (right.size - 1)
+            return leftWidth + CodexUiMetrics.space8 + rightWidth
+        }
+
+        private fun rowHeight(): Int = controls.maxOf { it.preferredSize.height }
+
+        private fun narrowHeight(): Int = rowHeight() * 2 + CodexUiMetrics.space4
     }
 
     private class CircularActionButton : JButton() {

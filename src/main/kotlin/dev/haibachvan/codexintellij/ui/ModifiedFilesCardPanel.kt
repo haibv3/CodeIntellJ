@@ -35,7 +35,7 @@ class ModifiedFilesCardPanel(
     private val onReview: (ModifiedFilesActions.Payload) -> Unit,
     private val onOpenFile: (String) -> Unit,
 ) : JPanel(BorderLayout()) {
-    private val arc = 14f
+    private val arc = CodexUiMetrics.radiusCard * 2f
     private val cardBg = CodexUiTheme.cardBg
     private val borderColor = CodexUiTheme.cardBorder
     private val divider = CodexUiTheme.cardDivider
@@ -191,7 +191,7 @@ class ModifiedFilesCardPanel(
         return object : JPanel() {
             init {
                 isOpaque = false
-                preferredSize = Dimension(24, 24)
+                preferredSize = Dimension(CodexUiMetrics.control24, CodexUiMetrics.control24)
                 minimumSize = preferredSize
                 maximumSize = preferredSize
             }
@@ -200,9 +200,10 @@ class ModifiedFilesCardPanel(
                 val g2 = g.create() as Graphics2D
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
                 g2.color = CodexUiTheme.codeBg
-                g2.fill(RoundRectangle2D.Float(1f, 1f, width - 2f, height - 2f, 7f, 7f))
+                val arc = CodexUiMetrics.radiusControl * 2f
+                g2.fill(RoundRectangle2D.Float(1f, 1f, width - 2f, height - 2f, arc, arc))
                 g2.color = CodexUiTheme.cardBorder
-                g2.draw(RoundRectangle2D.Float(1f, 1f, width - 2f, height - 2f, 7f, 7f))
+                g2.draw(RoundRectangle2D.Float(1f, 1f, width - 2f, height - 2f, arc, arc))
                 g2.color = CodexUiTheme.foreground
                 g2.font = CodexUiFonts.secondary(Font.BOLD)
                 val fm = g2.fontMetrics

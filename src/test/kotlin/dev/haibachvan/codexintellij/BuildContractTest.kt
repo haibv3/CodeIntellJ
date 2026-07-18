@@ -56,7 +56,7 @@ class BuildContractTest {
         assertTrue(build.contains("intellijIdea(platformVersion)"), build)
         assertTrue(props.contains("platformVersion=2026.1.4"), props)
         assertTrue(props.contains("pluginSinceBuild=261"), props)
-        assertTrue(props.contains("pluginUntilBuild=261.*"), props)
+        assertTrue(props.contains("pluginUntilBuild=262.*"), props)
         assertTrue(props.contains("kotlin.stdlib.default.dependency=false"), props)
         assertTrue(pluginXml.contains("<id>dev.haibachvan.codexintellij</id>"), pluginXml)
     }

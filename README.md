@@ -6,7 +6,7 @@ Native IntelliJ IDEA Community plugin for Codex IDE workflows over the public `c
 
 - Java 21
 - Gradle wrapper (9.0.0; required by IntelliJ Platform Gradle Plugin 2.18.1)
-- IntelliJ IDEA `2026.1.4` (`261.*`)
+- IntelliJ IDEA `2026.1.4` through `2026.2` (`261.*`-`262.*`)
 - Local `codex` CLI `0.144.5` for live app-server use
 
 ## Build / test

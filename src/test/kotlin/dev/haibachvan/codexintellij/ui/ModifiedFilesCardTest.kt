@@ -65,11 +65,20 @@ class ModifiedFilesCardTest {
                 ),
             ),
         )
-        val blocks = TranscriptRenderer.renderBlocks(store.snapshot(), ThreadId("t1"))
+        val blocks = TranscriptRenderer.renderBlocks(
+            store.snapshot(),
+            ThreadId("t1"),
+            TranscriptRenderOptions(
+                localNotices = listOf(ChatPanelModel.LocalNotice("files:turn-turn1", "Notice", "Body")),
+            ),
+        )
         val card = blocks.filterIsInstance<TranscriptBlock.ModifiedFiles>().single()
         assertTrue(card.payload.files.size == 2)
         assertTrue(card.payload.files.any { it.path.endsWith("docs/a.md") })
         assertTrue(card.payload.total.added >= 3)
+        assertTrue(blocks.map { it.id }.toSet().size == blocks.size)
+        assertTrue(card.id.startsWith("files:"))
+        assertTrue(blocks.any { it.id.startsWith("notice:") })
     }
 
     @Test
@@ -124,9 +133,13 @@ class ModifiedFilesCardTest {
         val blocks = TranscriptRenderer.renderBlocks(store.snapshot(), ThreadId("t1"))
         val cardIdx = blocks.indexOfFirst { it is TranscriptBlock.ModifiedFiles }
         val agentIdx = blocks.indexOfFirst {
-            it is TranscriptBlock.Html && it.fragment.contains("Đã sửa xong")
+            when (it) {
+                is TranscriptBlock.Html -> it.fragment.contains("Đã sửa xong")
+                is TranscriptBlock.PlainAgentMessage -> it.text.contains("Đã sửa xong")
+                else -> false
+            }
         }
-        assertTrue(agentIdx >= 0, "expected agent html block")
+        assertTrue(agentIdx >= 0, "expected agent transcript block")
         assertTrue(cardIdx >= 0, "expected modified-files card")
         assertTrue(cardIdx > agentIdx, "card should follow agent reply, got order=$blocks")
     }

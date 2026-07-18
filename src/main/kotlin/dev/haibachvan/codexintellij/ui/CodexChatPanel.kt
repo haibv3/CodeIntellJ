@@ -5,8 +5,6 @@ import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBHtmlPane
-import com.intellij.ui.components.JBHtmlPaneConfiguration
-import com.intellij.ui.components.JBHtmlPaneStyleConfiguration
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
 import dev.haibachvan.codexintellij.CodexProjectService
@@ -24,10 +22,10 @@ import dev.haibachvan.codexintellij.session.TurnId
 import dev.haibachvan.codexintellij.session.TurnStatus
 import java.awt.BorderLayout
 import java.awt.Dimension
+import java.awt.KeyboardFocusManager
 import java.awt.datatransfer.StringSelection
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
-import java.util.function.Consumer
 import javax.swing.Box
 import javax.swing.BoxLayout
 import javax.swing.JComponent
@@ -52,119 +50,34 @@ class CodexChatPanel(
         border = JBUI.Borders.empty(4, 0)
         alignmentX = LEFT_ALIGNMENT
     }
+    private val topSpacer = verticalSpacer()
+    private val bottomSpacer = verticalSpacer()
+    private val transcriptGlue = Box.createVerticalGlue()
     private val transcriptScroll = JBScrollPane(transcriptHost).apply {
         border = JBUI.Borders.empty()
         horizontalScrollBarPolicy = ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER
     }
-    private var lastAppliedFingerprint: String? = null
-    private data class AppliedSlot(val fingerprint: String, val component: JComponent)
+    private var lastAppliedVersion: List<Pair<String, TranscriptBlockRevision>> = emptyList()
+    private data class AppliedSlot(val block: TranscriptBlock, val component: JComponent)
     private val appliedSlots = ArrayList<AppliedSlot>()
+    private val heightCache = TranscriptHeightCache()
+    private val htmlArtifactCache = TranscriptHtmlArtifactCache()
+    private val scrollState = TranscriptScrollState()
+    private var latestTranscriptBlocks: List<TranscriptBlock> = emptyList()
+    private var currentWindow: TranscriptViewportWindow.Slice? = null
+    private var currentWindowSignature: List<Any> = emptyList()
+    private var applyingWindow = false
+    private var topSpacerHeight = 0
+    private var bottomSpacerHeight = 0
+    private var disposed = false
+    private val newUpdatesLabel = com.intellij.ui.components.JBLabel("Có cập nhật mới").apply {
+        foreground = CodexUiTheme.muted
+        font = CodexUiFonts.secondary()
+        border = JBUI.Borders.empty(2, 12)
+        isVisible = false
+    }
     /** Coalesce high-frequency streaming updates (~40ms). */
     private var coalesceTimer: Timer? = null
-
-    private fun newHtmlPane(): JBHtmlPane =
-        JBHtmlPane(
-            JBHtmlPaneStyleConfiguration.builder()
-                .enableInlineCodeBackground(false)
-                .enableCodeBlocksBackground(false)
-                // Empty = do not bump <code> / <pre> above body size.
-                .largeCodeFontSizeSelectors(emptyList())
-                .build(),
-            JBHtmlPaneConfiguration(),
-        ).apply {
-            // Drives JBHtmlPane baseFontSize for body/p/li (CSS alone is often overridden).
-            font = CodexUiFonts.body()
-            border = JBUI.Borders.empty(0, 12)
-            isEditable = false
-            isOpaque = false
-            alignmentX = LEFT_ALIGNMENT
-            addHyperlinkListener { event ->
-                if (event.eventType != HyperlinkEvent.EventType.ACTIVATED) return@addHyperlinkListener
-                val ref = event.description
-                    ?: event.url?.toExternalForm()
-                    ?: return@addHyperlinkListener
-                handleTranscriptLink(ref, event)
-            }
-        }
-
-    /** Hosts [JBHtmlPane] with a locked height so BoxLayout cannot overlap following chips. */
-    private inner class HtmlBlockHost : JPanel(BorderLayout()) {
-        val pane: JBHtmlPane = newHtmlPane()
-        private var lockedWidth: Int = 480
-        private var lockedHeight: Int = 24
-        private var lastLaidOutWidth: Int = -1
-        private var remasureScheduled: Boolean = false
-
-        init {
-            isOpaque = false
-            alignmentX = LEFT_ALIGNMENT
-            border = JBUI.Borders.empty()
-            add(pane, BorderLayout.CENTER)
-        }
-
-        fun updateContent(fragment: String, width: Int) {
-            val html = HtmlSwingSafe.sanitize(TranscriptRenderer.wrapDocument(fragment))
-            HtmlSwingSafe.disableBidi(pane)
-            try {
-                pane.text = html
-            } catch (_: Throwable) {
-                pane.text = html.replace(Regex("""</?font\b[^>]*>""", RegexOption.IGNORE_CASE), "")
-            }
-            HtmlSwingSafe.applyUniformContentFont(pane)
-            applyMeasuredWidth(width.coerceAtLeast(120))
-        }
-
-        /** Remeasure when the live layout width differs from the width used for HTML wrap. */
-        fun ensureWidth(width: Int) {
-            val w = width.coerceAtLeast(120)
-            if (w == lockedWidth && lockedHeight > 24) return
-            applyMeasuredWidth(w)
-        }
-
-        private fun applyMeasuredWidth(w: Int) {
-            val size = HtmlSwingSafe.applyMeasuredSize(pane, w)
-            lockedWidth = w
-            lockedHeight = size.height
-            lastLaidOutWidth = w
-            revalidate()
-        }
-
-        override fun doLayout() {
-            super.doLayout()
-            val w = width
-            if (w >= 120 && w != lastLaidOutWidth && !remasureScheduled) {
-                remasureScheduled = true
-                SwingUtilities.invokeLater {
-                    remasureScheduled = false
-                    if (!isShowing && parent == null) return@invokeLater
-                    val live = width.takeIf { it >= 120 } ?: return@invokeLater
-                    if (live == lastLaidOutWidth) return@invokeLater
-                    applyMeasuredWidth(live)
-                    transcriptHost.revalidate()
-                    transcriptHost.repaint()
-                }
-            }
-        }
-
-        override fun getPreferredSize(): Dimension = Dimension(lockedWidth, lockedHeight)
-
-        override fun getMaximumSize(): Dimension = Dimension(Integer.MAX_VALUE, lockedHeight)
-
-        override fun getMinimumSize(): Dimension = Dimension(0, lockedHeight)
-
-        override fun paintChildren(g: java.awt.Graphics) {
-            val clip = g.create(0, 0, width.coerceAtLeast(0), height.coerceAtLeast(0))
-            try {
-                super.paintChildren(clip)
-            } finally {
-                clip.dispose()
-            }
-        }
-
-        fun dispose() {
-            pane.dispose()
-        }
-    }
 
     private fun handleTranscriptLink(ref: String, event: HyperlinkEvent) {
         when {
@@ -210,6 +123,7 @@ class CodexChatPanel(
     /** Newest pending projection; older requests are dropped while one flight runs. */
     private val pendingRender = AtomicReference<RenderRequest?>(null)
     private val renderInFlight = AtomicBoolean(false)
+    private var stateBridge: UiStateBridge? = null
 
     private data class RenderRequest(
         val state: NormalizedServerState,
@@ -225,21 +139,30 @@ class CodexChatPanel(
         val timingSeedMs: Long,
     )
 
-    private val stateListener = Consumer<NormalizedServerState> { state ->
-        SwingUtilities.invokeLater {
-            renderExternal(state)
-            syncBusy(state)
-        }
-    }
-
     init {
         border = JBUI.Borders.empty()
+        transcriptHost.add(topSpacer)
+        transcriptHost.add(bottomSpacer)
+        transcriptHost.add(transcriptGlue)
         val north = JPanel(BorderLayout()).apply {
             add(approvalBanner, BorderLayout.NORTH)
             add(contextChips, BorderLayout.CENTER)
+            add(newUpdatesLabel, BorderLayout.SOUTH)
         }
         add(north, BorderLayout.NORTH)
         add(transcriptScroll, BorderLayout.CENTER)
+        transcriptScroll.verticalScrollBar.addAdjustmentListener { event ->
+            val bar = transcriptScroll.verticalScrollBar
+            scrollState.onScroll(bar.value, bar.visibleAmount, bar.maximum, event.valueIsAdjusting, currentWindow?.anchor)
+            if (disposed || event.valueIsAdjusting || applyingWindow) return@addAdjustmentListener
+            val pending = scrollState.consumePending()
+            if (pending != null) {
+                newUpdatesLabel.isVisible = false
+                applyTranscriptBlocks(pending, followLive = scrollState.shouldFollowLive())
+            } else if (latestTranscriptBlocks.size > TranscriptViewportWindow.TARGET_MATERIALIZED) {
+                applyTranscriptBlocks(latestTranscriptBlocks, followLive = false)
+            }
+        }
         if (!embedded) {
             val bar = CodexComposerBar(
                 model,
@@ -251,12 +174,23 @@ class CodexChatPanel(
             composer = bar
             add(bar, BorderLayout.SOUTH)
             // Standalone owns its store subscription; embedded chat is fed by the parent panel.
-            service.serverStateStore().addListener(stateListener)
+            stateBridge = UiStateBridge(
+                store = service.serverStateStore(),
+                selectedThread = { model.selectedThread },
+                activeTurnId = { model.activeTurnId?.value },
+                enabledSurfaces = setOf(UiSurface.TRANSCRIPT, UiSurface.BUSY),
+            ) { delivery ->
+                if (UiSurface.TRANSCRIPT in delivery.surfaces) renderExternal(delivery.state)
+                if (UiSurface.BUSY in delivery.surfaces) syncBusy(delivery.state)
+            }.also { bridge ->
+                bridge.offer(service.serverStateStore().snapshot())
+            }
         }
         renderExternal(service.serverStateStore().snapshot())
     }
 
     fun renderExternal(state: NormalizedServerState) {
+        if (disposed) return
         latestState = state
         // Keep EDT light: no projectionIndex / markdown here. Coalesce while any turn/item is active
         // (multi-agent floods otherwise freeze the IDE with HTML applies).
@@ -325,9 +259,11 @@ class CodexChatPanel(
                             blocks = listOf(
                                 TranscriptBlock.Html(
                                     "<p>Không render được transcript: ${ex.message ?: ex.javaClass.simpleName}</p>",
+                                    id = "error:render",
+                                    revision = TranscriptBlockRevision(request.generation),
                                 ),
                             ),
-                            fingerprint = "err-${request.generation}",
+                            version = listOf("error:render" to TranscriptBlockRevision(request.generation)),
                             runningSectionKeys = emptySet(),
                             sectionKeys = emptySet(),
                         )
@@ -335,12 +271,21 @@ class CodexChatPanel(
                     val stickToBottom = request.stickToBottom
                     val generation = request.generation
                     SwingUtilities.invokeLater {
-                        if (generation != renderGeneration) return@invokeLater
-                        if (prepared.fingerprint == lastAppliedFingerprint) return@invokeLater
-                        lastAppliedFingerprint = prepared.fingerprint
+                        if (disposed || generation != renderGeneration) return@invokeLater
+                        if (prepared.version == lastAppliedVersion) return@invokeLater
+                        lastAppliedVersion = prepared.version
                         applyExpandCollapse(prepared.runningSectionKeys)
-                        applyTranscriptBlocks(prepared.blocks)
-                        if (stickToBottom) scrollTranscriptToBottom()
+                        if (transcriptScroll.verticalScrollBar.valueIsAdjusting) {
+                            scrollState.defer(prepared.blocks)
+                            newUpdatesLabel.isVisible = true
+                            approvalBanner.render(service.approvalStateMachine().pending().firstOrNull())
+                            contextChips.refresh()
+                            return@invokeLater
+                        }
+                        applyTranscriptBlocks(
+                            prepared.blocks,
+                            followLive = stickToBottom && isScrolledNearBottom(),
+                        )
                         approvalBanner.render(service.approvalStateMachine().pending().firstOrNull())
                         contextChips.refresh()
                     }
@@ -356,7 +301,7 @@ class CodexChatPanel(
 
     private data class PreparedTranscript(
         val blocks: List<TranscriptBlock>,
-        val fingerprint: String,
+        val version: List<Pair<String, TranscriptBlockRevision>>,
         val runningSectionKeys: Set<String>,
         val sectionKeys: Set<String>,
     )
@@ -394,7 +339,7 @@ class CodexChatPanel(
         val blocks = TranscriptRenderer.renderBlocks(request.state, request.thread, options)
         return PreparedTranscript(
             blocks = blocks,
-            fingerprint = TranscriptBlock.fingerprints(blocks).joinToString("|"),
+            version = blocks.map { it.id to it.revision },
             runningSectionKeys = index.runningSectionKeys,
             sectionKeys = index.sectionKeys,
         )
@@ -411,74 +356,210 @@ class CodexChatPanel(
         previouslyRunningSections.addAll(runningNow)
     }
 
-    private fun applyTranscriptBlocks(blocks: List<TranscriptBlock>) {
+    private fun applyTranscriptBlocks(
+        blocks: List<TranscriptBlock>,
+        followLive: Boolean,
+        correctionPass: Int = 0,
+    ) {
+        if (disposed) return
+        val previousBlocks = latestTranscriptBlocks
         val width = CodexUiTheme.transcriptContentWidth(transcriptScroll.viewport.width)
-        val prints = TranscriptBlock.fingerprints(blocks)
-
-        var shared = 0
-        while (shared < appliedSlots.size &&
-            shared < blocks.size &&
-            appliedSlots[shared].fingerprint == prints[shared]
-        ) {
-            shared++
+        val widthBucket = (width / HEIGHT_WIDTH_BUCKET_PX) * HEIGHT_WIDTH_BUCKET_PX
+        fun estimatedHeight(block: TranscriptBlock): Int =
+            heightCache.get(block.id, block.revision, widthBucket) ?: defaultBlockHeight(block)
+        val bar = transcriptScroll.verticalScrollBar
+        val liveViewportHeight = transcriptScroll.viewport.height.takeIf { it > 0 }
+            ?: DEFAULT_VIEWPORT_HEIGHT_PX
+        val previousAnchor = if (!followLive && previousBlocks.isNotEmpty()) {
+            TranscriptViewportWindow.compute(
+                blocks = previousBlocks,
+                viewportTop = bar.value,
+                viewportHeight = liveViewportHeight,
+                heightOf = ::estimatedHeight,
+            ).anchor
+        } else {
+            null
         }
+        latestTranscriptBlocks = blocks
+        val totalHeight = blocks.fold(0) { total, block ->
+            (total.toLong() + estimatedHeight(block)).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        }
+        val viewportHeight = liveViewportHeight
+        val viewportTop = if (followLive) {
+            (totalHeight - viewportHeight).coerceAtLeast(0)
+        } else {
+            previousAnchor?.let { anchor ->
+                TranscriptViewportWindow.scrollTopForAnchor(blocks, anchor, ::estimatedHeight)
+            } ?: bar.value
+        }
+        val window = TranscriptViewportWindow.compute(
+            blocks = blocks,
+            viewportTop = viewportTop,
+            viewportHeight = viewportHeight,
+            heightOf = ::estimatedHeight,
+        )
+        val signature = buildList<Any> {
+            add(window.startIndex)
+            add(window.topSpacerHeight)
+            add(window.bottomSpacerHeight)
+            window.blocks.forEach { add(it.id); add(it.revision) }
+        }
+        if (signature == currentWindowSignature) return
 
-        // Prefer in-place HTML update for the first differing slot (typical stream growth).
-        if (shared < blocks.size &&
-            shared < appliedSlots.size &&
-            blocks[shared] is TranscriptBlock.Html &&
-            appliedSlots[shared].component is HtmlBlockHost
-        ) {
-            val host = appliedSlots[shared].component as HtmlBlockHost
-            host.updateContent((blocks[shared] as TranscriptBlock.Html).fragment, width)
-            appliedSlots[shared] = AppliedSlot(prints[shared], host)
-            shared++
-            while (shared < appliedSlots.size &&
-                shared < blocks.size &&
-                appliedSlots[shared].fingerprint == prints[shared]
-            ) {
-                shared++
+        applyingWindow = true
+        var heightChanged = false
+        try {
+            val materialized = window.blocks
+            val plan = TranscriptBlockReconciler.plan(appliedSlots.map { it.block }, materialized)
+            val oldById = appliedSlots.associateBy { it.block.id }
+            val reusablePlainHosts = TranscriptComponentHostReconciler.collectReusableEvictions(
+                previous = appliedSlots.map { it.block.id to it.component },
+                nextIds = materialized.mapTo(HashSet()) { it.id },
+                canReuse = {
+                    it is TranscriptPlainAgentBlockHost && it.canRecycle(
+                        KeyboardFocusManager.getCurrentKeyboardFocusManager().focusOwner,
+                    )
+                },
+            )
+            val nextSlots = ArrayList<AppliedSlot>(materialized.size)
+            plan.entries.forEach { entry ->
+                val prior = oldById[entry.block.id]
+                val slot = when (entry.change) {
+                    TranscriptBlockReconciler.Change.KEEP -> {
+                        checkNotNull(prior)
+                        when (val component = prior.component) {
+                            is TranscriptHtmlBlockHost -> component.ensureWidth(width)
+                            is TranscriptPlainAgentBlockHost -> component.ensureWidth(width)
+                        }
+                        AppliedSlot(entry.block, prior.component)
+                    }
+                    TranscriptBlockReconciler.Change.UPDATE -> updateSlot(prior, entry.block, width)
+                    TranscriptBlockReconciler.Change.INSERT -> {
+                        val recycled = if (
+                            entry.block is TranscriptBlock.PlainAgentMessage && reusablePlainHosts.isNotEmpty()
+                        ) {
+                            reusablePlainHosts.removeFirst() as TranscriptPlainAgentBlockHost
+                        } else {
+                            null
+                        }
+                        if (recycled != null) {
+                            recycled.updateContent(entry.block as TranscriptBlock.PlainAgentMessage, width)
+                            AppliedSlot(entry.block, recycled)
+                        } else {
+                            AppliedSlot(entry.block, createBlockComponent(entry.block, width))
+                        }
+                    }
+                }
+                nextSlots += slot
             }
+
+            TranscriptComponentHostReconciler.apply(
+                host = transcriptHost,
+                previous = appliedSlots.map { it.component },
+                next = nextSlots.map { it.component },
+                prefixCount = 1,
+                onRemove = ::disposeComponent,
+            )
+            updateSpacer(topSpacer, window.topSpacerHeight)
+            updateSpacer(bottomSpacer, window.bottomSpacerHeight)
+            appliedSlots.clear()
+            appliedSlots.addAll(nextSlots)
+            nextSlots.forEach { slot ->
+                val measuredHeight = slot.component.preferredSize.height
+                if (measuredHeight != estimatedHeight(slot.block)) {
+                    heightCache.put(
+                        slot.block.id,
+                        slot.block.revision,
+                        widthBucket,
+                        measuredHeight,
+                    )
+                    heightChanged = true
+                }
+            }
+            currentWindow = window
+            currentWindowSignature = signature
+            topSpacerHeight = window.topSpacerHeight
+            bottomSpacerHeight = window.bottomSpacerHeight
+            transcriptHost.revalidate()
+            transcriptHost.repaint()
+            transcriptScroll.validate()
+            bar.value = if (followLive) bar.maximum else viewportTop
+        } finally {
+            applyingWindow = false
+        }
+        if (heightChanged && correctionPass < MAX_HEIGHT_CORRECTION_PASSES) {
+            applyTranscriptBlocks(blocks, followLive, correctionPass + 1)
+        }
+    }
+
+    private fun defaultBlockHeight(block: TranscriptBlock): Int = when (block) {
+        is TranscriptBlock.Html -> 72
+        is TranscriptBlock.PlainAgentMessage -> CodexUiMetrics.control28 + CodexUiMetrics.space8 * 2
+        is TranscriptBlock.CodeFence -> 220
+        is TranscriptBlock.ModifiedFiles -> 128
+        is TranscriptBlock.AgentChip -> 36
+    }
+
+    private fun updateSlot(
+        prior: AppliedSlot?,
+        block: TranscriptBlock,
+        width: Int,
+    ): AppliedSlot {
+        val component = prior?.component
+        if (block is TranscriptBlock.Html && component is TranscriptHtmlBlockHost) {
+            component.updateContent(block, width)
+            return AppliedSlot(block, component)
+        }
+        if (block is TranscriptBlock.PlainAgentMessage && component is TranscriptPlainAgentBlockHost) {
+            component.updateContent(block, width)
+            return AppliedSlot(block, component)
         }
 
-        // Shared HTML slots keep fingerprints across width changes — remasure wrap height.
-        for (i in 0 until shared) {
-            val host = appliedSlots[i].component as? HtmlBlockHost ?: continue
-            host.ensureWidth(width)
-        }
-
-        disposeSlotsFrom(shared)
-
-        for (i in shared until blocks.size) {
-            val component = createBlockComponent(blocks[i], width)
-            transcriptHost.add(component)
-            appliedSlots += AppliedSlot(prints[i], component)
-        }
-        transcriptHost.add(Box.createVerticalGlue())
-        transcriptHost.revalidate()
-        transcriptHost.repaint()
+        val replacement = createBlockComponent(block, width)
+        return AppliedSlot(block, replacement)
     }
 
     private fun disposeSlotsFrom(from: Int) {
-        while (transcriptHost.componentCount > from) {
-            val idx = transcriptHost.componentCount - 1
-            val component = transcriptHost.getComponent(idx)
-            transcriptHost.remove(idx)
-            when (component) {
-                is CodeFenceCardPanel -> component.dispose()
-                is HtmlBlockHost -> component.dispose()
-                is JBHtmlPane -> component.dispose()
-            }
-        }
         while (appliedSlots.size > from) {
-            appliedSlots.removeAt(appliedSlots.lastIndex)
+            val component = appliedSlots.removeAt(appliedSlots.lastIndex).component
+            if (component.parent === transcriptHost) transcriptHost.remove(component)
+            disposeComponent(component)
+        }
+    }
+
+    private fun updateSpacer(spacer: Box.Filler, height: Int) {
+        val fixed = Dimension(0, height.coerceAtLeast(0))
+        spacer.changeShape(fixed, fixed, Dimension(Integer.MAX_VALUE, fixed.height))
+    }
+
+    private fun disposeComponent(component: java.awt.Component) {
+        when (component) {
+            is CodeFenceCardPanel -> component.dispose()
+            is TranscriptHtmlBlockHost -> component.dispose()
+            is JBHtmlPane -> component.dispose()
         }
     }
 
     private fun createBlockComponent(block: TranscriptBlock, width: Int): JComponent =
         when (block) {
             is TranscriptBlock.Html -> {
-                HtmlBlockHost().also { it.updateContent(block.fragment, width) }
+                TranscriptHtmlBlockHost(
+                    artifactCache = htmlArtifactCache,
+                    onLink = ::handleTranscriptLink,
+                    onRemeasured = {
+                        transcriptHost.revalidate()
+                        transcriptHost.repaint()
+                    },
+                ).also { it.updateContent(block, width) }
+            }
+            is TranscriptBlock.PlainAgentMessage -> {
+                TranscriptPlainAgentBlockHost(
+                    onCopy = ::copyItemById,
+                    onRemeasured = {
+                        transcriptHost.revalidate()
+                        transcriptHost.repaint()
+                    },
+                ).also { it.updateContent(block, width) }
             }
             is TranscriptBlock.ModifiedFiles -> {
                 val card = ModifiedFilesCardPanel(
@@ -508,13 +589,6 @@ class CodexChatPanel(
     private fun isScrolledNearBottom(): Boolean {
         val bar = transcriptScroll.verticalScrollBar
         return bar.maximum - (bar.value + bar.visibleAmount) < 80
-    }
-
-    private fun scrollTranscriptToBottom() {
-        SwingUtilities.invokeLater {
-            val bar = transcriptScroll.verticalScrollBar
-            bar.value = bar.maximum
-        }
     }
 
     fun copyLastAgentReply(): Boolean {
@@ -875,16 +949,28 @@ class CodexChatPanel(
     }
 
     override fun dispose() {
+        disposed = true
+        stateBridge?.dispose()
+        stateBridge = null
         coalesceTimer?.stop()
         coalesceTimer = null
         pendingRender.set(null)
-        if (!embedded) {
-            service.serverStateStore().removeListener(stateListener)
-        }
+        latestTranscriptBlocks = emptyList()
+        currentWindow = null
+        currentWindowSignature = emptyList()
         disposeSlotsFrom(0)
     }
 
     companion object {
         private const val RENDER_COALESCE_MS = 40
+        private const val HEIGHT_WIDTH_BUCKET_PX = 64
+        private const val DEFAULT_VIEWPORT_HEIGHT_PX = 600
+        private const val MAX_HEIGHT_CORRECTION_PASSES = 2
+
+        private fun verticalSpacer(): Box.Filler = Box.Filler(
+            Dimension(0, 0),
+            Dimension(0, 0),
+            Dimension(Integer.MAX_VALUE, 0),
+        )
     }
 }

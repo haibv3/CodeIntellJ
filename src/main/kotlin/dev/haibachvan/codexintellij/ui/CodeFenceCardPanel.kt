@@ -1,5 +1,6 @@
 package dev.haibachvan.codexintellij.ui
 
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.ex.EditorEx
@@ -11,19 +12,15 @@ import com.intellij.openapi.project.Project
 import com.intellij.ui.EditorTextField
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
-import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.RenderingHints
 import java.awt.datatransfer.StringSelection
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
 import java.awt.geom.RoundRectangle2D
 import javax.swing.JButton
 import javax.swing.JLabel
 import javax.swing.JPanel
-import javax.swing.SwingConstants
 
 /**
  * Native fenced-code card — same chrome language as [ModifiedFilesCardPanel]
@@ -34,13 +31,12 @@ class CodeFenceCardPanel(
     language: String?,
     private val code: String,
 ) : JPanel(BorderLayout()), Disposable {
-    private val arc = 14f
+    private val arc = CodexUiMetrics.radiusCard * 2f
     private val cardBg = CodexUiTheme.cardBg
     private val borderColor = CodexUiTheme.cardBorder
     private val muted = CodexUiTheme.muted
-    private val fg = CodexUiTheme.foreground
     private val editorField: EditorTextField
-    private val copyGlyph = "\u29C9"
+    private var disposed = false
 
     init {
         isOpaque = false
@@ -93,27 +89,12 @@ class CodeFenceCardPanel(
     }
 
     private fun copyButton(): JButton =
-        JButton(copyGlyph).apply {
-            isOpaque = false
-            isContentAreaFilled = false
-            isBorderPainted = false
-            foreground = muted
-            font = CodexUiFonts.body()
-            toolTipText = "Copy"
-            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-            margin = JBUI.insets(2, 4)
-            horizontalAlignment = SwingConstants.CENTER
-            addActionListener {
-                CopyPasteManager.getInstance().setContents(StringSelection(code))
-            }
-            addMouseListener(object : MouseAdapter() {
-                override fun mouseEntered(e: MouseEvent?) {
-                    foreground = fg
-                }
-                override fun mouseExited(e: MouseEvent?) {
-                    foreground = muted
-                }
-            })
+        CodexIconButton(
+            icon = AllIcons.Actions.Copy,
+            tooltip = "Sao chép code",
+            accessibleName = "Sao chép khối code",
+        ) {
+            CopyPasteManager.getInstance().setContents(StringSelection(code))
         }
 
     private fun buildEditor(language: String?): EditorTextField {
@@ -202,7 +183,9 @@ class CodeFenceCardPanel(
         Dimension(Integer.MAX_VALUE, preferredSize.height)
 
     override fun dispose() {
-        // EditorTextField releases its editor when removed / GC'd; explicit clear helps.
-        editorField.removeNotify()
+        if (disposed) return
+        disposed = true
+        // Removal from a displayable host already releases the editor through removeNotify.
+        if (editorField.isDisplayable) editorField.removeNotify()
     }
 }

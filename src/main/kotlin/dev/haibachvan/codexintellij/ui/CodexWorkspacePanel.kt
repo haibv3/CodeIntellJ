@@ -1,5 +1,6 @@
 package dev.haibachvan.codexintellij.ui
 
+import com.intellij.icons.AllIcons
 import com.intellij.ide.ActivityTracker
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
@@ -29,7 +30,6 @@ import java.awt.Dimension
 import java.awt.Font
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
-import java.util.function.Consumer
 import javax.swing.BorderFactory
 import javax.swing.DefaultListModel
 import javax.swing.JButton
@@ -40,6 +40,11 @@ import javax.swing.SwingUtilities
 import javax.swing.ListSelectionModel
 import javax.swing.Box
 import javax.swing.BoxLayout
+
+internal fun configureRecentTaskListAccessibility(list: JBList<*>) {
+    list.getAccessibleContext().accessibleName = "Nhiệm vụ gần đây"
+    list.getAccessibleContext().accessibleDescription = "Chọn một nhiệm vụ Codex gần đây để mở lại"
+}
 
 /**
  * Codex shell matching IDE chat UX: home (tasks + empty state) and active chat with model picker.
@@ -85,11 +90,12 @@ class CodexWorkspacePanel(
     }
     private val taskModel = DefaultListModel<TaskRow>()
     private val taskList = JBList(taskModel).apply {
+        configureRecentTaskListAccessibility(this)
         visibleRowCount = 6
         border = JBUI.Borders.empty(4, 8)
         selectionMode = ListSelectionModel.SINGLE_SELECTION
         cellRenderer = TaskRowRenderer()
-        fixedCellHeight = JBUI.scale(32)
+        fixedCellHeight = CodexUiMetrics.control32
     }
     private var taskPreviewLimit = 12
     /** Guards async task-open resume against out-of-order clicks. */
@@ -111,16 +117,18 @@ class CodexWorkspacePanel(
         placeholder = "Yêu cầu những thay đổi tiếp theo",
     )
 
-    private val stateListener = Consumer<NormalizedServerState> { state ->
-        SwingUtilities.invokeLater {
-            refreshTasks(state)
-            refreshAgents(state)
-            syncBusyFromState(state)
-            syncChatTitle(state)
-            chat.renderExternal(state)
-            if (model.selectedThread != null) {
-                showChat()
-            }
+    private val stateBridge = UiStateBridge(
+        store = service.serverStateStore(),
+        selectedThread = { model.selectedThread },
+        activeTurnId = { model.activeTurnId?.value },
+    ) { delivery ->
+        if (UiSurface.TASKS in delivery.surfaces) refreshTasks(delivery.state)
+        if (UiSurface.AGENTS in delivery.surfaces) refreshAgents(delivery.state)
+        if (UiSurface.BUSY in delivery.surfaces) syncBusyFromState(delivery.state)
+        if (UiSurface.TITLE in delivery.surfaces) syncChatTitle(delivery.state)
+        if (UiSurface.TRANSCRIPT in delivery.surfaces) {
+            chat.renderExternal(delivery.state)
+            if (model.selectedThread != null) showChat()
         }
     }
 
@@ -129,9 +137,10 @@ class CodexWorkspacePanel(
         stack.add(buildHome(), "home")
         stack.add(buildChatPage(), "chat")
         add(stack, BorderLayout.CENTER)
-        service.serverStateStore().addListener(stateListener)
         refreshStatus()
-        refreshTasks(service.serverStateStore().snapshot())
+        val initialState = service.serverStateStore().snapshot()
+        refreshTasks(initialState)
+        stateBridge.offer(initialState)
         showHome()
 
         taskList.addMouseListener(object : MouseAdapter() {
@@ -211,18 +220,19 @@ class CodexWorkspacePanel(
                 BorderFactory.createMatteBorder(0, 0, 1, 0, CodexUiTheme.cardDivider),
                 JBUI.Borders.empty(6, 8, 6, 8),
             )
-            add(JButton("←").also {
-                it.isBorderPainted = false
-                it.isContentAreaFilled = false
-                it.font = CodexUiFonts.body()
-                it.toolTipText = "Về danh sách nhiệm vụ"
-                it.addActionListener {
+            add(
+                CodexIconButton(
+                    icon = AllIcons.Actions.Back,
+                    tooltip = "Về danh sách nhiệm vụ",
+                    accessibleName = "Quay lại danh sách nhiệm vụ",
+                ) {
                     model.selectThread(null)
                     taskList.clearSelection()
                     showHome()
                     refreshTasks(service.serverStateStore().snapshot())
-                }
-            }, BorderLayout.WEST)
+                },
+                BorderLayout.WEST,
+            )
             chatTitle.font = CodexUiFonts.title()
             chatTitle.foreground = CodexUiTheme.foreground
             chatTitle.border = JBUI.Borders.empty(0, 8)
@@ -795,7 +805,7 @@ class CodexWorkspacePanel(
     }
 
     override fun dispose() {
-        service.serverStateStore().removeListener(stateListener)
+        stateBridge.dispose()
         chat.dispose()
     }
 

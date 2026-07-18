@@ -1,6 +1,5 @@
 package dev.haibachvan.codexintellij.ui
 
-import com.intellij.markdown.utils.MarkdownToHtmlConverter
 import com.intellij.openapi.project.Project
 import dev.haibachvan.codexintellij.session.ItemFact
 import dev.haibachvan.codexintellij.session.ItemStatus
@@ -8,6 +7,8 @@ import dev.haibachvan.codexintellij.session.NormalizedServerState
 import dev.haibachvan.codexintellij.session.ThreadId
 import dev.haibachvan.codexintellij.session.resolvedChanges
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
+import org.intellij.markdown.html.HtmlGenerator
+import org.intellij.markdown.parser.MarkdownParser
 
 /** UI options for transcript HTML (expand/collapse, timing labels). */
 data class TranscriptRenderOptions(
@@ -55,9 +56,7 @@ object TranscriptRenderer {
     var lastProjectionItemVisits: Int = 0
         internal set
 
-    private val markdown by lazy {
-        MarkdownToHtmlConverter(GFMFlavourDescriptor())
-    }
+    private val markdownFlavour = GFMFlavourDescriptor()
 
     private val FILE_EXT = Regex(
         """(?i)\.(md|txt|kt|kts|java|xml|gradle|properties|json|ya?ml|toml|rs|go|py|ts|tsx|js|jsx|css|html|sh|c|cpp|h|hpp)$""",
@@ -78,7 +77,13 @@ object TranscriptRenderer {
             )
         }
         val blocks = renderBlocks(state, threadId, options)
-        val htmlBody = blocks.filterIsInstance<TranscriptBlock.Html>().joinToString("") { it.fragment }
+        val htmlBody = blocks.joinToString("") { block ->
+            when (block) {
+                is TranscriptBlock.Html -> block.fragment
+                is TranscriptBlock.PlainAgentMessage -> agentBlock(block.itemId, block.text, options)
+                else -> ""
+            }
+        }
         return document(htmlBody.ifBlank { """<div class="empty"><p class="muted">Chưa có tin nhắn.</p></div>""" })
     }
 
@@ -96,6 +101,8 @@ object TranscriptRenderer {
                       <p>Bắt đầu cuộc trò chuyện — nhập tin nhắn bên dưới.</p>
                     </div>
                     """.trimIndent(),
+                    id = "empty:new-conversation",
+                    revision = TranscriptBlockRevision(),
                 ),
             )
         }
@@ -109,16 +116,14 @@ object TranscriptRenderer {
                       <p class="muted">Chưa có tin nhắn.</p>
                     </div>
                     """.trimIndent(),
+                    id = "empty:${threadId?.value ?: "none"}",
+                    revision = TranscriptBlockRevision(state.lastArrivalSeq),
                 ),
             )
         }
         val blocks = ArrayList<TranscriptBlock>()
-        val html = StringBuilder()
-        fun flushHtml() {
-            if (html.isNotEmpty()) {
-                blocks += TranscriptBlock.Html(html.toString())
-                html.clear()
-            }
+        fun emitHtml(id: String, revision: TranscriptBlockRevision, fragment: String) {
+            blocks += TranscriptBlock.Html(fragment, id, revision)
         }
         val emittedActivityKeys = HashSet<String>()
         val emittedPatchKeys = HashSet<String>()
@@ -126,7 +131,13 @@ object TranscriptRenderer {
         fun emitModifiedFiles(sectionItems: List<ItemFact>) {
             val key = activitySectionKey(sectionItems)
             if (!emittedPatchKeys.add(key)) return
-            modifiedFilesPayload(sectionItems)?.let { blocks += TranscriptBlock.ModifiedFiles(it) }
+            modifiedFilesPayload(sectionItems)?.let { payload ->
+                blocks += TranscriptBlock.ModifiedFiles(
+                    payload = payload,
+                    id = "files:$key",
+                    revision = sectionRevision(sectionItems, options, "files"),
+                )
+            }
         }
         fun emitAgentChips(sectionItems: List<ItemFact>) {
             for (sub in sectionItems.filterIsInstance<ItemFact.Subagent>()) {
@@ -135,24 +146,35 @@ object TranscriptRenderer {
                     agentId = sub.fact.agentId,
                     statusLabel = agentStatusLabel(sub.fact.status),
                     summary = sub.fact.summary,
+                    id = "agent:${sub.id.value}",
+                    revision = TranscriptBlockRevision(
+                        sourceVersion = sub.arrivalSeq,
+                        viewVersion = "${sub.fact.status}:${sub.fact.summary.orEmpty()}",
+                    ),
                 )
             }
         }
         for (item in items) {
             when (item) {
-                is ItemFact.UserMessage -> html.append(userBlock(item.text))
+                is ItemFact.UserMessage -> emitHtml(
+                    id = "item:${item.id.value}:user",
+                    revision = TranscriptBlockRevision(item.arrivalSeq),
+                    fragment = userBlock(item.text),
+                )
                 is ItemFact.AgentMessage -> {
                     if (index.isInterim(item)) {
                         val key = activitySectionKey(listOf(item))
                         if (emittedActivityKeys.add(key)) {
                             val sectionItems = index.activityItems(key)
-                            html.append(activitySection(sectionItems, options))
-                            flushHtml()
+                            emitHtml(
+                                id = "activity:$key",
+                                revision = sectionRevision(sectionItems, options, "activity"),
+                                fragment = activitySection(sectionItems, options),
+                            )
                             emitAgentChips(sectionItems)
                         }
                     } else {
-                        flushHtml()
-                        for (block in expandAgentMessage(item.id.value, item.text, options)) {
+                        for (block in expandAgentMessage(item, options)) {
                             blocks += block
                         }
                         val key = activitySectionKey(listOf(item))
@@ -161,14 +183,18 @@ object TranscriptRenderer {
                         emitAgentChips(sectionItems)
                     }
                 }
-                is ItemFact.ApprovalReference -> html.append(
-                    metaBlock(
+                is ItemFact.ApprovalReference -> emitHtml(
+                    id = "item:${item.id.value}:approval",
+                    revision = TranscriptBlockRevision(item.arrivalSeq),
+                    fragment = metaBlock(
                         "Approval",
                         "<p><code>${escape(item.requestId)}</code> · ${escape(item.status.name)}</p>",
                     ),
                 )
-                is ItemFact.Unknown -> html.append(
-                    metaBlock(
+                is ItemFact.Unknown -> emitHtml(
+                    id = "item:${item.id.value}:unknown",
+                    revision = TranscriptBlockRevision(item.arrivalSeq),
+                    fragment = metaBlock(
                         "Unknown (${escape(item.type)})",
                         "<p class=\"muted\">${escape(item.status.name)}</p>",
                     ),
@@ -181,21 +207,27 @@ object TranscriptRenderer {
                     val key = activitySectionKey(listOf(item))
                     if (!emittedActivityKeys.add(key)) continue
                     val sectionItems = index.activityItems(key)
-                    html.append(activitySection(sectionItems, options))
-                    flushHtml()
+                    emitHtml(
+                        id = "activity:$key",
+                        revision = sectionRevision(sectionItems, options, "activity"),
+                        fragment = activitySection(sectionItems, options),
+                    )
                     emitAgentChips(sectionItems)
                 }
             }
         }
         for (notice in options.localNotices) {
-            html.append(
-                metaBlock(
+            emitHtml(
+                id = "notice:${notice.id}",
+                revision = TranscriptBlockRevision(
+                    viewVersion = "${notice.title}\u0000${notice.bodyMarkdown}",
+                ),
+                fragment = metaBlock(
                     notice.title,
                     markdownBody(notice.bodyMarkdown, options),
                 ),
             )
         }
-        flushHtml()
         for (key in index.sectionKeys) {
             if (key in emittedPatchKeys) continue
             emitModifiedFiles(index.activityItems(key))
@@ -207,9 +239,37 @@ object TranscriptRenderer {
                 agentId = sub.fact.agentId,
                 statusLabel = agentStatusLabel(sub.fact.status),
                 summary = sub.fact.summary,
+                id = "agent:${sub.id.value}",
+                revision = TranscriptBlockRevision(
+                    sourceVersion = sub.arrivalSeq,
+                    viewVersion = "${sub.fact.status}:${sub.fact.summary.orEmpty()}",
+                ),
             )
         }
+        require(blocks.map { it.id }.toSet().size == blocks.size) {
+            "Transcript renderer emitted duplicate semantic block ids"
+        }
         return blocks
+    }
+
+    private fun sectionRevision(
+        items: List<ItemFact>,
+        options: TranscriptRenderOptions,
+        kind: String,
+    ): TranscriptBlockRevision {
+        val key = activitySectionKey(items)
+        val sourceVersion = items.maxOfOrNull { it.arrivalSeq } ?: 0L
+        val expandedActivities = items.map { it.id.value }
+            .filter { it in options.expandedActivityIds }
+            .sorted()
+        val viewVersion = buildString {
+            append(kind).append('|')
+            append(key in options.expandedReasoningIds).append('|')
+            append(options.reasoningElapsedSeconds[key]).append('|')
+            append(expandedActivities.joinToString(",")).append('|')
+            items.forEach { append(it.id.value).append(':').append(it.status).append(';') }
+        }
+        return TranscriptBlockRevision(sourceVersion, viewVersion)
     }
 
     /**
@@ -572,16 +632,37 @@ object TranscriptRenderer {
      * (rounded Swing chrome like the modified-files card). Prose stays HTML.
      */
     private fun expandAgentMessage(
-        itemId: String,
-        text: String,
+        item: ItemFact.AgentMessage,
         options: TranscriptRenderOptions,
     ): List<TranscriptBlock> {
+        val itemId = item.id.value
+        val text = item.text
         val parts = MarkdownFenceSplitter.split(text)
         if (parts.none { it is MarkdownFenceSplitter.Part.Fence }) {
-            return listOf(TranscriptBlock.Html(agentBlock(itemId, text, options)))
+            if (isPlainAgentText(text)) {
+                return listOf(
+                    TranscriptBlock.PlainAgentMessage(
+                        itemId = itemId,
+                        text = text,
+                        id = "item:$itemId:prose:0",
+                        revision = TranscriptBlockRevision(viewVersion = text),
+                    ),
+                )
+            }
+            return listOf(
+                TranscriptBlock.Html(
+                    fragment = agentBlock(itemId, text, options),
+                    id = "item:$itemId:prose:0",
+                    revision = TranscriptBlockRevision(
+                        viewVersion = "$text\u0000light=${options.lightweightStreaming}",
+                    ),
+                ),
+            )
         }
         val out = ArrayList<TranscriptBlock>()
         val prose = StringBuilder()
+        var proseIndex = 0
+        var fenceIndex = 0
         fun flushProse(withCopy: Boolean = false) {
             val chunk = prose.toString().trim()
             prose.clear()
@@ -593,12 +674,16 @@ object TranscriptRenderer {
                 ""
             }
             out += TranscriptBlock.Html(
-                """
+                fragment = """
                 <div class="row agent-part">
                   $md
                   $copy
                 </div>
                 """.trimIndent(),
+                id = "item:$itemId:prose:${proseIndex++}",
+                revision = TranscriptBlockRevision(
+                    viewVersion = "$chunk\u0000copy=$withCopy;light=${options.lightweightStreaming}",
+                ),
             )
         }
         for (part in parts) {
@@ -606,13 +691,26 @@ object TranscriptRenderer {
                 is MarkdownFenceSplitter.Part.Text -> prose.append(part.text)
                 is MarkdownFenceSplitter.Part.Fence -> {
                     flushProse(withCopy = false)
-                    out += TranscriptBlock.CodeFence(part.language, part.code)
+                    out += TranscriptBlock.CodeFence(
+                        language = part.language,
+                        code = part.code,
+                        id = "item:$itemId:fence:${fenceIndex++}",
+                        revision = TranscriptBlockRevision(
+                            viewVersion = "${part.language.orEmpty()}\u0000${part.code}",
+                        ),
+                    )
                 }
             }
         }
         // Keep copy with the last prose chunk (not a separate distant HTML pane).
         flushProse(withCopy = true)
         return out
+    }
+
+    private fun isPlainAgentText(text: String): Boolean {
+        if (text.isBlank() || '\n' in text || '\r' in text) return false
+        if (text.contains("://")) return false
+        return text.none { it in "`*_~[]<>#" }
     }
 
     private fun metaBlock(title: String, bodyHtml: String, muted: Boolean = false): String {
@@ -631,7 +729,8 @@ object TranscriptRenderer {
         return try {
             // GFM fences → <pre><code class="language-…"> then color via IDE lexer.
             val html = try {
-                markdown.convertMarkdownToHtml(text, null)
+                val tree = MarkdownParser(markdownFlavour).buildMarkdownTreeFromString(text)
+                HtmlGenerator(text, tree, markdownFlavour).generateHtml()
             } catch (_: Throwable) {
                 "<p>${escapeWithBreaks(text)}</p>"
             }
