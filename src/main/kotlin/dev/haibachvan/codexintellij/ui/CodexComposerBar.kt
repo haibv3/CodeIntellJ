@@ -23,17 +23,27 @@ import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.Graphics
 import java.awt.Graphics2D
+import java.awt.Image
 import java.awt.Point
 import java.awt.RenderingHints
+import java.awt.datatransfer.Clipboard
+import java.awt.datatransfer.DataFlavor
+import java.awt.event.InputEvent
 import java.awt.event.KeyEvent
+import java.awt.image.BufferedImage
+import java.nio.file.Files
 import java.nio.file.Path
+import javax.imageio.ImageIO
 import javax.swing.BorderFactory
 import javax.swing.DefaultComboBoxModel
+import javax.swing.Icon
 import javax.swing.JButton
 import javax.swing.JCheckBox
+import javax.swing.JComponent
 import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.JScrollPane
+import javax.swing.TransferHandler
 import kotlin.io.path.relativeToOrNull
 
 /**
@@ -151,6 +161,7 @@ class CodexComposerBar(
                 }
             },
         ).also { it.install() }
+        installClipboardImageTransferHandler()
 
         modelCombo.addActionListener { onModelSelected() }
         effortButton.addActionListener { showEffortPopup() }
@@ -321,6 +332,63 @@ class CodexComposerBar(
             attachmentsStrip.addAll(list)
             composer.requestFocusInWindow()
         }
+    }
+
+    private fun installClipboardImageTransferHandler() {
+        val textTransferHandler = composer.transferHandler
+        composer.transferHandler = object : TransferHandler() {
+            override fun canImport(support: TransferHandler.TransferSupport): Boolean =
+                support.isDataFlavorSupported(DataFlavor.imageFlavor) ||
+                    textTransferHandler?.canImport(support) == true
+
+            override fun importData(support: TransferHandler.TransferSupport): Boolean {
+                if (!support.isDataFlavorSupported(DataFlavor.imageFlavor)) {
+                    return textTransferHandler?.importData(support) == true
+                }
+                val image = runCatching {
+                    support.transferable.getTransferData(DataFlavor.imageFlavor) as? Image
+                }.getOrNull() ?: return false
+                val attachment = createClipboardImageAttachment(image) ?: return false
+                attachmentsStrip.addAll(listOf(attachment))
+                composer.requestFocusInWindow()
+                return true
+            }
+
+            override fun getSourceActions(component: JComponent): Int =
+                textTransferHandler?.getSourceActions(component) ?: TransferHandler.NONE
+
+            override fun exportToClipboard(component: JComponent, clipboard: Clipboard, action: Int) {
+                textTransferHandler?.exportToClipboard(component, clipboard, action)
+            }
+
+            override fun exportAsDrag(component: JComponent, event: InputEvent, action: Int) {
+                textTransferHandler?.exportAsDrag(component, event, action)
+            }
+
+            override fun getVisualRepresentation(transferable: java.awt.datatransfer.Transferable): Icon? =
+                textTransferHandler?.getVisualRepresentation(transferable)
+        }
+    }
+
+    private fun createClipboardImageAttachment(image: Image): ComposerAttachment? {
+        val icon = javax.swing.ImageIcon(image)
+        if (icon.iconWidth <= 0 || icon.iconHeight <= 0) return null
+        val buffered = BufferedImage(icon.iconWidth, icon.iconHeight, BufferedImage.TYPE_INT_ARGB)
+        val graphics = buffered.createGraphics()
+        try {
+            graphics.drawImage(icon.image, 0, 0, null)
+        } finally {
+            graphics.dispose()
+        }
+        val path = runCatching { Files.createTempFile("codex-clipboard-image-", ".png") }.getOrNull()
+            ?: return null
+        val written = runCatching { ImageIO.write(buffered, "png", path.toFile()) }.getOrDefault(false)
+        if (!written) {
+            runCatching { Files.deleteIfExists(path) }
+            return null
+        }
+        path.toFile().deleteOnExit()
+        return ComposerAttachment.fromPath(path, path.fileName.toString())
     }
 
     private fun VirtualFile.toNioPathOrNull(): Path? =

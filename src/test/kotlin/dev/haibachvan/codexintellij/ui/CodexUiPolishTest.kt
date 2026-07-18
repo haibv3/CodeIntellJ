@@ -5,10 +5,19 @@ import com.intellij.ui.components.JBList
 import dev.haibachvan.codexintellij.settings.ModelCatalog
 import java.awt.Component
 import java.awt.Container
+import java.awt.Image
 import java.awt.Rectangle
+import java.awt.datatransfer.DataFlavor
+import java.awt.datatransfer.StringSelection
+import java.awt.datatransfer.Transferable
+import java.awt.image.BufferedImage
+import java.nio.file.Files
+import javax.imageio.ImageIO
+import javax.swing.JButton
 import javax.swing.JComboBox
 import javax.swing.JTextArea
 import javax.swing.SwingUtilities
+import javax.swing.TransferHandler
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -16,6 +25,88 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class CodexUiPolishTest {
+    @Test
+    fun `image attachment remove button does not overlap thumbnail`() {
+        val image = Files.createTempFile("codex-attachment-layout-", ".png")
+        try {
+            ImageIO.write(BufferedImage(8, 8, BufferedImage.TYPE_INT_RGB), "png", image.toFile())
+            SwingUtilities.invokeAndWait {
+                val strip = ComposerAttachmentsStrip()
+                strip.addAll(listOf(ComposerAttachment.fromPath(image, image.fileName.toString())))
+                strip.setSize(strip.preferredSize)
+                layoutRecursively(strip)
+
+                val remove = descendants(strip).filterIsInstance<JButton>().single()
+                val thumbnail = descendants(strip).first { it is com.intellij.ui.components.JBLabel }
+                val removeBounds = SwingUtilities.convertRectangle(remove.parent, remove.bounds, strip)
+                val thumbnailBounds = SwingUtilities.convertRectangle(thumbnail.parent, thumbnail.bounds, strip)
+                val stripBounds = Rectangle(0, 0, strip.width, strip.height)
+
+                assertTrue(stripBounds.contains(removeBounds), "Remove button is clipped: $removeBounds")
+                assertFalse(
+                    removeBounds.intersects(thumbnailBounds),
+                    "Remove button overlaps thumbnail: remove=$removeBounds thumbnail=$thumbnailBounds",
+                )
+            }
+        } finally {
+            Files.deleteIfExists(image)
+        }
+    }
+
+    @Test
+    fun `composer accepts clipboard image as attachment`() {
+        val composer = CodexComposerBar(
+            panelModel = ChatPanelModel("clipboard-image"),
+            catalog = ModelCatalog { null },
+            onSend = {},
+        )
+        val input = descendants(composer).filterIsInstance<JTextArea>().first()
+        val clipboardImage = BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB)
+        val transferable = object : Transferable {
+            override fun getTransferDataFlavors(): Array<DataFlavor> = arrayOf(DataFlavor.imageFlavor)
+
+            override fun isDataFlavorSupported(flavor: DataFlavor): Boolean = flavor == DataFlavor.imageFlavor
+
+            override fun getTransferData(flavor: DataFlavor): Image {
+                require(isDataFlavorSupported(flavor))
+                return clipboardImage
+            }
+        }
+
+        val imported = input.transferHandler.importData(TransferHandler.TransferSupport(input, transferable))
+        val attachment = composer.attachments().singleOrNull()
+
+        try {
+            assertTrue(imported, "Clipboard image was not imported")
+            assertNotNull(attachment, "Clipboard image did not create an attachment")
+            val pastedAttachment = requireNotNull(attachment)
+            assertEquals(ComposerAttachment.Kind.IMAGE, pastedAttachment.kind)
+            assertTrue(Files.isRegularFile(pastedAttachment.absolutePath))
+            assertEquals("localImage", pastedAttachment.toWireInput().get("type").asString)
+            assertTrue(composer.canSend())
+        } finally {
+            attachment?.absolutePath?.let(Files::deleteIfExists)
+        }
+    }
+
+    @Test
+    fun `clipboard image support preserves text paste`() {
+        val composer = CodexComposerBar(
+            panelModel = ChatPanelModel("clipboard-text"),
+            catalog = ModelCatalog { null },
+            onSend = {},
+        )
+        val input = descendants(composer).filterIsInstance<JTextArea>().first()
+
+        val imported = input.transferHandler.importData(
+            TransferHandler.TransferSupport(input, StringSelection("pasted text")),
+        )
+
+        assertTrue(imported)
+        assertEquals("pasted text", composer.text())
+        assertTrue(composer.attachments().isEmpty())
+    }
+
     @Test
     fun `narrow composer keeps every primary control inside bounds`() {
         SwingUtilities.invokeAndWait {

@@ -79,20 +79,22 @@ class ComposerAttachmentsStrip(
 
     private fun imageChip(att: ComposerAttachment): JPanel {
         val size = 52
+        val closeSize = 18
+        val closeGap = 4
         val thumb = loadThumbnail(att, size)
         val panel = JPanel(null).apply {
             isOpaque = false
-            preferredSize = Dimension(size + 6, size + 6)
+            preferredSize = Dimension(size + closeGap + closeSize, size)
             maximumSize = preferredSize
             toolTipText = att.displayPath
         }
         val imageLabel = JBLabel(thumb).apply {
-            setBounds(0, 6, size, size)
+            setBounds(0, 0, size, size)
             border = BorderFactory.createLineBorder(CodexUiTheme.border, 1, true)
             horizontalAlignment = SwingConstants.CENTER
         }
         val close = closeButton(att.fileName).apply {
-            setBounds(size - 10, 0, 18, 18)
+            setBounds(size + closeGap, 0, closeSize, closeSize)
             addActionListener { remove(att.id) }
         }
         panel.add(imageLabel)

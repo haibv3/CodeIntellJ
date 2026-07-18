@@ -61,20 +61,24 @@ class InterimAgentMessageTest {
         val agents = items.filterIsInstance<ItemFact.AgentMessage>()
         assertTrue(agents.size == 3)
 
-        // While turn is active, all progress notes stay inside thinking (no Copy rows).
-        agents.forEach {
+        // Earlier progress notes fold into thinking; the latest reply stays visible while
+        // the turn is still active (no jump into/out of the thinking section).
+        agents.dropLast(1).forEach {
             assertTrue(TranscriptRenderer.isInterimAgentMessage(it, items, activeTurnId = "turn1"))
         }
+        assertFalse(TranscriptRenderer.isInterimAgentMessage(agents.last(), items, activeTurnId = "turn1"))
         val activeHtml = TranscriptRenderer.render(
             store.snapshot(),
             ThreadId("t1"),
             TranscriptRenderOptions(activeTurnId = "turn1", expandedReasoningIds = setOf("t1/turn-turn1")),
         )
         assertTrue(activeHtml.contains("think-toggle"))
-        assertFalse(activeHtml.contains("codex-copy:"))
+        assertTrue(activeHtml.contains("codex-copy:a3"))
+        assertFalse(activeHtml.contains("codex-copy:a1"))
+        assertFalse(activeHtml.contains("codex-copy:a2"))
         assertTrue(activeHtml.contains("Tôi sẽ đọc README.md") || activeHtml.contains("README"))
 
-        // After turn finishes, only the last agent message is the visible result with Copy.
+        // After turn finishes, only the last agent message remains the visible result with Copy.
         agents.dropLast(1).forEach {
             assertTrue(TranscriptRenderer.isInterimAgentMessage(it, items, activeTurnId = null))
         }
@@ -158,4 +162,120 @@ class InterimAgentMessageTest {
         )
         assertTrue(doneHtml.contains("think-toggle") || doneHtml.contains("Đã hoạt động"), doneHtml)
     }
+
+    @Test
+    fun `streaming last agent stays visible even without prior work`() {
+        val store = ServerStateStore(ConversationReducer())
+        val epoch = ProcessEpoch(1)
+        var seq = 0L
+        fun notify(method: String, body: JsonObject.() -> Unit) {
+            seq += 1
+            store.dispatch(
+                SequencedEvent(
+                    epoch, seq, seq, SequencedEventKind.NOTIFICATION, null,
+                    WireEnvelope.Notification(method, JsonObject().apply(body)),
+                ),
+            )
+        }
+        notify("thread/started") { addProperty("threadId", "t1") }
+        notify("turn/started") {
+            addProperty("threadId", "t1")
+            addProperty("turnId", "turn1")
+        }
+        notify("item/agentMessage/delta") {
+            addProperty("threadId", "t1")
+            addProperty("turnId", "turn1")
+            addProperty("itemId", "a1")
+            addProperty("delta", "Xin chào")
+        }
+        val items = store.snapshot().items.values
+            .filter { it.threadId == ThreadId("t1") }
+            .sortedWith(compareBy({ it.arrivalSeq }, { it.id.value }))
+        val agent = items.filterIsInstance<ItemFact.AgentMessage>().single()
+        assertFalse(
+            TranscriptRenderer.isInterimAgentMessage(agent, items, activeTurnId = "turn1"),
+            "Live streaming reply must stay in the main bubble, not collapsed thinking",
+        )
+        val blocks = TranscriptRenderer.renderBlocks(
+            store.snapshot(),
+            ThreadId("t1"),
+            TranscriptRenderOptions(activeTurnId = "turn1"),
+        )
+        assertTrue(
+            blocks.any { it is TranscriptBlock.PlainAgentMessage && it.text.contains("Xin chào") },
+            blocks.joinToString { it.id },
+        )
+    }
+
+    @Test
+    fun `completed last agent does not disappear into thinking while turn still active`() {
+        val store = ServerStateStore(ConversationReducer())
+        val epoch = ProcessEpoch(1)
+        var seq = 0L
+        fun notify(method: String, body: JsonObject.() -> Unit) {
+            seq += 1
+            store.dispatch(
+                SequencedEvent(
+                    epoch, seq, seq, SequencedEventKind.NOTIFICATION, null,
+                    WireEnvelope.Notification(method, JsonObject().apply(body)),
+                ),
+            )
+        }
+        notify("thread/started") { addProperty("threadId", "t1") }
+        notify("turn/started") {
+            addProperty("threadId", "t1")
+            addProperty("turnId", "turn1")
+        }
+        notify("item/started") {
+            addProperty("threadId", "t1")
+            addProperty("turnId", "turn1")
+            addProperty("itemId", "r1")
+            addProperty("type", "reasoning")
+            addProperty("text", "thinking")
+        }
+        notify("item/agentMessage/delta") {
+            addProperty("threadId", "t1")
+            addProperty("turnId", "turn1")
+            addProperty("itemId", "a1")
+            addProperty("delta", "Partial ")
+        }
+        notify("item/agentMessage/delta") {
+            addProperty("itemId", "a1")
+            addProperty("delta", "answer")
+        }
+        val midItems = store.snapshot().items.values
+            .filter { it.threadId == ThreadId("t1") }
+            .sortedWith(compareBy({ it.arrivalSeq }, { it.id.value }))
+        val midAgent = midItems.filterIsInstance<ItemFact.AgentMessage>().single()
+        assertFalse(
+            TranscriptRenderer.isInterimAgentMessage(midAgent, midItems, activeTurnId = "turn1"),
+            "Streaming with prior reasoning must be visible",
+        )
+
+        notify("item/completed") {
+            addProperty("threadId", "t1")
+            addProperty("turnId", "turn1")
+            addProperty("itemId", "a1")
+            addProperty("type", "agentMessage")
+            addProperty("text", "Partial answer")
+        }
+        // Command still running keeps the turn active after the answer completed.
+        notify("item/started") {
+            addProperty("threadId", "t1")
+            addProperty("turnId", "turn1")
+            addProperty("itemId", "c1")
+            addProperty("type", "commandExecution")
+            addProperty("command", "ls")
+        }
+
+        val items = store.snapshot().items.values
+            .filter { it.threadId == ThreadId("t1") }
+            .sortedWith(compareBy({ it.arrivalSeq }, { it.id.value }))
+        val agent = items.filterIsInstance<ItemFact.AgentMessage>().single()
+        assertFalse(
+            TranscriptRenderer.isInterimAgentMessage(agent, items, activeTurnId = "turn1"),
+            "Completed final reply must not jump into thinking while later tools still run",
+        )
+    }
 }
+

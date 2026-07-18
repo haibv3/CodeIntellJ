@@ -49,7 +49,7 @@ class MultiAgentRenderScaleTest {
         assertTrue(blocks.size == MultiAgentUiWorkload.spec.transcriptBlockCount)
         assertTrue(
             blocks.count { it is TranscriptBlock.PlainAgentMessage } ==
-                MultiAgentUiWorkload.spec.messageCount - 1,
+                MultiAgentUiWorkload.spec.messageCount,
             "Plain multi-agent results must bypass Swing HTML parsing",
         )
         assertTrue(slice.blocks.size == TranscriptViewportWindow.TARGET_MATERIALIZED)

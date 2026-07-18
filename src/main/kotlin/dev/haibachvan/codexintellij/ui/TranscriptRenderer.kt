@@ -410,9 +410,10 @@ object TranscriptRenderer {
     }
 
     /**
-     * Progress / plan agent messages fold into the thinking section (no Copy).
-     * Only the last agent message is the visible result after the turn ends.
-     * While the turn is active, completed/progress notes stay inside thinking.
+     * Earlier progress / plan agent messages fold into the thinking section (no Copy).
+     * The latest agent message for the turn is always the visible reply — while it
+     * streams, after it completes, and after the turn ends — so content does not jump
+     * between the thinking block and the main bubble.
      */
     fun isInterimAgentMessage(
         item: ItemFact.AgentMessage,
@@ -455,45 +456,21 @@ object TranscriptRenderer {
 
     /**
      * Classify interim agent messages for one already-sorted turn group in O(group size).
+     * [activeTurnId] is retained for call-site compatibility; visibility no longer depends on it.
      */
+    @Suppress("UNUSED_PARAMETER")
     private fun classifyInterimAgentIds(
         turnItems: List<ItemFact>,
         activeTurnId: String?,
     ): Set<String> {
         val agents = turnItems.filterIsInstance<ItemFact.AgentMessage>()
         if (agents.isEmpty()) return emptySet()
-        val lastAgent = agents.last()
-        val busyIds = turnItems
-            .filter { it.status == ItemStatus.STARTED || it.status == ItemStatus.ACTIVE }
-            .mapTo(HashSet()) { it.id }
-        val interim = HashSet<String>()
-        for (agent in agents) {
-            if (agent.id != lastAgent.id) {
-                interim += agent.id.value
-                continue
-            }
-            if (busyIds.any { it != agent.id }) {
-                interim += agent.id.value
-                continue
-            }
-            val turnId = agent.turnId?.value
-            val turnMarkedActive = activeTurnId != null && turnId != null && turnId == activeTurnId
-            if (turnMarkedActive) {
-                val streaming = agent.status == ItemStatus.STARTED || agent.status == ItemStatus.ACTIVE
-                if (!streaming) {
-                    interim += agent.id.value
-                    continue
-                }
-                val priorWork = turnItems.any { it.id != agent.id }
-                if (!priorWork) {
-                    interim += agent.id.value
-                }
-                continue
-            }
-            // After the turn ends, the last agent message is always the visible result.
-            // Late reasoning/command completions must not fold that reply into collapsed thinking.
+        val lastAgentId = agents.last().id
+        // Only earlier progress notes fold away. The latest reply stays put so streaming
+        // and post-complete tool activity cannot yank text into/out of the thinking section.
+        return agents.mapNotNullTo(HashSet()) { agent ->
+            agent.id.value.takeIf { agent.id != lastAgentId }
         }
-        return interim
     }
 
     private fun activitySection(items: List<ItemFact>, options: TranscriptRenderOptions): String {
