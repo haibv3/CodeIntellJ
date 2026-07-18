@@ -1,7 +1,6 @@
 package dev.haibachvan.codexintellij.ui
 
 import com.intellij.openapi.project.Project
-import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
@@ -195,13 +194,17 @@ class ComposerPlusMenuPanel(
     entries: List<ComposerPlusEntry>,
     private val onPick: (ComposerPlusEntry) -> Unit,
 ) : JPanel(BorderLayout()) {
+    private val focusableRows = ArrayList<JPanel>()
+    private val rowEntries = ArrayList<ComposerPlusEntry>()
+
     init {
         border = BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(JBColor.border(), 1, true),
+            BorderFactory.createLineBorder(CodexUiTheme.border, 1, true),
             JBUI.Borders.empty(8, 0),
         )
-        background = JBColor.background()
+        background = CodexUiTheme.background
         preferredSize = Dimension(380, 440)
+        isFocusCycleRoot = true
 
         val body = JPanel().apply {
             layout = BoxLayout(this, BoxLayout.Y_AXIS)
@@ -224,7 +227,71 @@ class ComposerPlusMenuPanel(
             border = JBUI.Borders.empty()
             horizontalScrollBarPolicy = JBScrollPane.HORIZONTAL_SCROLLBAR_NEVER
         }, BorderLayout.CENTER)
+
+        // Arrow-key navigation between rows when the panel holds focus.
+        inputMap.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_DOWN, 0), "row-next")
+        inputMap.put(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_UP, 0), "row-prev")
+        actionMap.put(
+            "row-next",
+            object : javax.swing.AbstractAction() {
+                override fun actionPerformed(e: java.awt.event.ActionEvent?) = moveRow(1)
+            },
+        )
+        actionMap.put(
+            "row-prev",
+            object : javax.swing.AbstractAction() {
+                override fun actionPerformed(e: java.awt.event.ActionEvent?) = moveRow(-1)
+            },
+        )
+        focusableRows.firstOrNull()?.requestFocusInWindow()
     }
+
+    /** Test seam: rows that can receive keyboard focus. */
+    fun focusableRowCount(): Int = focusableRows.size
+
+    fun requestFocusFirstRow(): Boolean =
+        focusableRows.firstOrNull()?.requestFocusInWindow() == true
+
+    fun rowAccessibleName(index: Int): String? =
+        focusableRows.getOrNull(index)?.accessibleContext?.accessibleName
+
+    fun rowToolTip(index: Int): String? =
+        focusableRows.getOrNull(index)?.toolTipText
+
+    fun activateRowAt(index: Int): Boolean {
+        val entry = rowEntries.getOrNull(index) ?: return false
+        onPick(entry)
+        return true
+    }
+
+    fun dispatchEnterOnRow(index: Int): Boolean {
+        val row = focusableRows.getOrNull(index) ?: return false
+        row.dispatchEvent(
+            java.awt.event.KeyEvent(
+                row,
+                java.awt.event.KeyEvent.KEY_PRESSED,
+                System.currentTimeMillis(),
+                0,
+                java.awt.event.KeyEvent.VK_ENTER,
+                '\n',
+            ),
+        )
+        return true
+    }
+
+    fun rowHasActivationKeys(index: Int): Boolean {
+        val row = focusableRows.getOrNull(index) ?: return false
+        return row.keyListeners.isNotEmpty() && row.isFocusable
+    }
+
+    private fun moveRow(delta: Int) {
+        if (focusableRows.isEmpty()) return
+        val current = focusableRows.indexOfFirst { it.hasFocus() }.coerceAtLeast(0)
+        val next = (current + delta).floorMod(focusableRows.size)
+        focusableRows[next].requestFocusInWindow()
+    }
+
+    private fun Int.floorMod(m: Int): Int = ((this % m) + m) % m
 
     private fun sectionLabel(text: String): JPanel =
         JPanel().apply {
@@ -234,7 +301,7 @@ class ComposerPlusMenuPanel(
             alignmentX = Component.LEFT_ALIGNMENT
             maximumSize = Dimension(Int.MAX_VALUE, 28)
             add(JBLabel(text).apply {
-                foreground = JBColor.GRAY
+                foreground = CodexUiTheme.muted
                 font = font.deriveFont(Font.BOLD, CodexUiFonts.SECONDARY)
             })
             add(Box.createHorizontalGlue())
@@ -246,7 +313,7 @@ class ComposerPlusMenuPanel(
             alignmentX = Component.LEFT_ALIGNMENT
         }
         val desc = JBLabel(entry.description).apply {
-            foreground = JBColor.GRAY
+            foreground = CodexUiTheme.muted
             font = font.deriveFont(Font.PLAIN, CodexUiFonts.SECONDARY)
             alignmentX = Component.LEFT_ALIGNMENT
             toolTipText = entry.description
@@ -261,29 +328,66 @@ class ComposerPlusMenuPanel(
         }
         val panel = JPanel(BorderLayout()).apply {
             isOpaque = true
-            background = JBColor.background()
+            background = CodexUiTheme.background
             border = JBUI.Borders.empty(8, 12)
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
             alignmentX = Component.LEFT_ALIGNMENT
+            isFocusable = true
+            toolTipText = "${entry.title} — ${entry.description}"
+            getAccessibleContext().accessibleName = entry.title
+            getAccessibleContext().accessibleDescription = entry.description
             add(textCol, BorderLayout.CENTER)
         }
         // Keep title + subtitle packed; do not let BoxLayout stretch the row.
         panel.maximumSize = Dimension(Int.MAX_VALUE, panel.preferredSize.height)
-        val hover = JBColor(0x2A2A2A, 0x3A3A3A)
-        val normal = JBColor.background()
+
+        fun paintState(hovered: Boolean, focused: Boolean) {
+            panel.background = when {
+                focused -> CodexUiTheme.selectionBg
+                hovered -> CodexUiTheme.hoverBg
+                else -> CodexUiTheme.background
+            }
+            title.foreground = if (focused) CodexUiTheme.selectionFg else CodexUiTheme.foreground
+            desc.foreground = if (focused) CodexUiTheme.selectionFg else CodexUiTheme.muted
+            panel.repaint()
+        }
+
         panel.addMouseListener(object : MouseAdapter() {
             override fun mouseEntered(e: MouseEvent) {
-                panel.background = hover
+                if (!panel.hasFocus()) paintState(hovered = true, focused = false)
             }
 
             override fun mouseExited(e: MouseEvent) {
-                panel.background = normal
+                if (!panel.hasFocus()) paintState(hovered = false, focused = false)
             }
 
             override fun mouseClicked(e: MouseEvent) {
                 onPick(entry)
             }
         })
+        panel.addFocusListener(object : java.awt.event.FocusAdapter() {
+            override fun focusGained(e: java.awt.event.FocusEvent?) {
+                paintState(hovered = false, focused = true)
+            }
+
+            override fun focusLost(e: java.awt.event.FocusEvent?) {
+                paintState(hovered = false, focused = false)
+            }
+        })
+        panel.addKeyListener(object : java.awt.event.KeyAdapter() {
+            override fun keyPressed(e: java.awt.event.KeyEvent) {
+                when (e.keyCode) {
+                    java.awt.event.KeyEvent.VK_ENTER,
+                    java.awt.event.KeyEvent.VK_SPACE,
+                    -> {
+                        e.consume()
+                        onPick(entry)
+                    }
+                }
+            }
+        })
+        focusableRows += panel
+        rowEntries += entry
         return panel
     }
 }

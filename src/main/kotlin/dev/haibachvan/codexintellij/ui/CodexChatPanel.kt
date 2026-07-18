@@ -19,10 +19,14 @@ import dev.haibachvan.codexintellij.session.ItemFact
 import dev.haibachvan.codexintellij.session.ItemId
 import dev.haibachvan.codexintellij.session.ItemStatus
 import dev.haibachvan.codexintellij.session.NormalizedServerState
+import dev.haibachvan.codexintellij.session.ThreadId
+import dev.haibachvan.codexintellij.session.TurnId
 import dev.haibachvan.codexintellij.session.TurnStatus
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.datatransfer.StringSelection
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import java.util.function.Consumer
 import javax.swing.Box
 import javax.swing.BoxLayout
@@ -83,6 +87,85 @@ class CodexChatPanel(
             }
         }
 
+    /** Hosts [JBHtmlPane] with a locked height so BoxLayout cannot overlap following chips. */
+    private inner class HtmlBlockHost : JPanel(BorderLayout()) {
+        val pane: JBHtmlPane = newHtmlPane()
+        private var lockedWidth: Int = 480
+        private var lockedHeight: Int = 24
+        private var lastLaidOutWidth: Int = -1
+        private var remasureScheduled: Boolean = false
+
+        init {
+            isOpaque = false
+            alignmentX = LEFT_ALIGNMENT
+            border = JBUI.Borders.empty()
+            add(pane, BorderLayout.CENTER)
+        }
+
+        fun updateContent(fragment: String, width: Int) {
+            val html = HtmlSwingSafe.sanitize(TranscriptRenderer.wrapDocument(fragment))
+            HtmlSwingSafe.disableBidi(pane)
+            try {
+                pane.text = html
+            } catch (_: Throwable) {
+                pane.text = html.replace(Regex("""</?font\b[^>]*>""", RegexOption.IGNORE_CASE), "")
+            }
+            HtmlSwingSafe.applyUniformContentFont(pane)
+            applyMeasuredWidth(width.coerceAtLeast(120))
+        }
+
+        /** Remeasure when the live layout width differs from the width used for HTML wrap. */
+        fun ensureWidth(width: Int) {
+            val w = width.coerceAtLeast(120)
+            if (w == lockedWidth && lockedHeight > 24) return
+            applyMeasuredWidth(w)
+        }
+
+        private fun applyMeasuredWidth(w: Int) {
+            val size = HtmlSwingSafe.applyMeasuredSize(pane, w)
+            lockedWidth = w
+            lockedHeight = size.height
+            lastLaidOutWidth = w
+            revalidate()
+        }
+
+        override fun doLayout() {
+            super.doLayout()
+            val w = width
+            if (w >= 120 && w != lastLaidOutWidth && !remasureScheduled) {
+                remasureScheduled = true
+                SwingUtilities.invokeLater {
+                    remasureScheduled = false
+                    if (!isShowing && parent == null) return@invokeLater
+                    val live = width.takeIf { it >= 120 } ?: return@invokeLater
+                    if (live == lastLaidOutWidth) return@invokeLater
+                    applyMeasuredWidth(live)
+                    transcriptHost.revalidate()
+                    transcriptHost.repaint()
+                }
+            }
+        }
+
+        override fun getPreferredSize(): Dimension = Dimension(lockedWidth, lockedHeight)
+
+        override fun getMaximumSize(): Dimension = Dimension(Integer.MAX_VALUE, lockedHeight)
+
+        override fun getMinimumSize(): Dimension = Dimension(0, lockedHeight)
+
+        override fun paintChildren(g: java.awt.Graphics) {
+            val clip = g.create(0, 0, width.coerceAtLeast(0), height.coerceAtLeast(0))
+            try {
+                super.paintChildren(clip)
+            } finally {
+                clip.dispose()
+            }
+        }
+
+        fun dispose() {
+            pane.dispose()
+        }
+    }
+
     private fun handleTranscriptLink(ref: String, event: HyperlinkEvent) {
         when {
             ref.startsWith("codex-copy:") ->
@@ -124,6 +207,23 @@ class CodexChatPanel(
     private val previouslyRunningSections = HashSet<String>()
     /** Drop stale async renders when state updates faster than HTML build. */
     private var renderGeneration: Long = 0L
+    /** Newest pending projection; older requests are dropped while one flight runs. */
+    private val pendingRender = AtomicReference<RenderRequest?>(null)
+    private val renderInFlight = AtomicBoolean(false)
+
+    private data class RenderRequest(
+        val state: NormalizedServerState,
+        val thread: ThreadId?,
+        val activeTurnId: String?,
+        val expandedWhenIdle: Set<String>,
+        val collapsedWhileRunning: Set<String>,
+        val expandedActivityIds: Set<String>,
+        val localNotices: List<ChatPanelModel.LocalNotice>,
+        val stickToBottom: Boolean,
+        val generation: Long,
+        /** Elapsed map built cheaply on EDT from existing timing maps + index on worker. */
+        val timingSeedMs: Long,
+    )
 
     private val stateListener = Consumer<NormalizedServerState> { state ->
         SwingUtilities.invokeLater {
@@ -150,16 +250,17 @@ class CodexChatPanel(
             )
             composer = bar
             add(bar, BorderLayout.SOUTH)
+            // Standalone owns its store subscription; embedded chat is fed by the parent panel.
+            service.serverStateStore().addListener(stateListener)
         }
-        service.serverStateStore().addListener(stateListener)
         renderExternal(service.serverStateStore().snapshot())
     }
 
     fun renderExternal(state: NormalizedServerState) {
         latestState = state
-        trackReasoningTiming(state)
-        syncAutoExpandCollapse(state)
-        if (isStreamingActive(state)) {
+        // Keep EDT light: no projectionIndex / markdown here. Coalesce while any turn/item is active
+        // (multi-agent floods otherwise freeze the IDE with HTML applies).
+        if (needsRenderCoalesce(state)) {
             if (coalesceTimer == null) {
                 coalesceTimer = Timer(RENDER_COALESCE_MS) {
                     coalesceTimer = null
@@ -176,6 +277,15 @@ class CodexChatPanel(
         }
     }
 
+    private fun needsRenderCoalesce(state: NormalizedServerState): Boolean {
+        if (isStreamingActive(state)) return true
+        val thread = model.selectedThread ?: return false
+        return state.items.values.any { item ->
+            item.threadId == thread &&
+                (item.status == ItemStatus.STARTED || item.status == ItemStatus.ACTIVE)
+        }
+    }
+
     private fun isStreamingActive(state: NormalizedServerState): Boolean {
         val active = model.activeTurnId ?: return false
         val fact = state.turns[active] ?: return true
@@ -185,44 +295,124 @@ class CodexChatPanel(
     }
 
     private fun enqueueTranscriptRender(state: NormalizedServerState) {
-        val expanded = effectiveExpandedSections(state)
-        val options = TranscriptRenderOptions(
-            expandedReasoningIds = expanded,
-            expandedActivityIds = expandedActivityIds.toSet(),
-            reasoningElapsedSeconds = buildElapsedMap(state),
-            activeTurnId = model.activeTurnId?.value,
-            localNotices = model.notices(),
-            project = project,
-            lightweightStreaming = isStreamingActive(state),
+        pendingRender.set(
+            RenderRequest(
+                state = state,
+                thread = model.selectedThread,
+                activeTurnId = model.activeTurnId?.value,
+                expandedWhenIdle = userExpandedWhenIdle.toSet(),
+                collapsedWhileRunning = userCollapsedWhileRunning.toSet(),
+                expandedActivityIds = expandedActivityIds.toSet(),
+                localNotices = model.notices(),
+                stickToBottom = isScrolledNearBottom(),
+                generation = ++renderGeneration,
+                timingSeedMs = System.currentTimeMillis(),
+            ),
         )
-        val thread = model.selectedThread
-        val generation = ++renderGeneration
-        val stickToBottom = isScrolledNearBottom()
+        pumpRenderQueue()
+    }
+
+    private fun pumpRenderQueue() {
+        if (!renderInFlight.compareAndSet(false, true)) return
         ApplicationManager.getApplication().executeOnPooledThread {
-            val blocks = try {
-                TranscriptRenderer.renderBlocks(state, thread, options)
-            } catch (ex: Throwable) {
-                listOf(
-                    TranscriptBlock.Html(
-                        "<p>Không render được transcript: ${ex.message ?: ex.javaClass.simpleName}</p>",
-                    ),
-                )
-            }
-            val fingerprint = TranscriptBlock.fingerprints(blocks).joinToString("|")
-            SwingUtilities.invokeLater {
-                if (generation != renderGeneration) return@invokeLater
-                if (fingerprint == lastAppliedFingerprint) return@invokeLater
-                lastAppliedFingerprint = fingerprint
-                applyTranscriptBlocks(blocks)
-                if (stickToBottom) scrollTranscriptToBottom()
-                approvalBanner.render(service.approvalStateMachine().pending().firstOrNull())
-                contextChips.refresh()
+            try {
+                while (true) {
+                    val request = pendingRender.getAndSet(null) ?: break
+                    val prepared = try {
+                        prepareTranscriptApply(request)
+                    } catch (ex: Throwable) {
+                        PreparedTranscript(
+                            blocks = listOf(
+                                TranscriptBlock.Html(
+                                    "<p>Không render được transcript: ${ex.message ?: ex.javaClass.simpleName}</p>",
+                                ),
+                            ),
+                            fingerprint = "err-${request.generation}",
+                            runningSectionKeys = emptySet(),
+                            sectionKeys = emptySet(),
+                        )
+                    }
+                    val stickToBottom = request.stickToBottom
+                    val generation = request.generation
+                    SwingUtilities.invokeLater {
+                        if (generation != renderGeneration) return@invokeLater
+                        if (prepared.fingerprint == lastAppliedFingerprint) return@invokeLater
+                        lastAppliedFingerprint = prepared.fingerprint
+                        applyExpandCollapse(prepared.runningSectionKeys)
+                        applyTranscriptBlocks(prepared.blocks)
+                        if (stickToBottom) scrollTranscriptToBottom()
+                        approvalBanner.render(service.approvalStateMachine().pending().firstOrNull())
+                        contextChips.refresh()
+                    }
+                }
+            } finally {
+                renderInFlight.set(false)
+                if (pendingRender.get() != null) {
+                    pumpRenderQueue()
+                }
             }
         }
     }
 
+    private data class PreparedTranscript(
+        val blocks: List<TranscriptBlock>,
+        val fingerprint: String,
+        val runningSectionKeys: Set<String>,
+        val sectionKeys: Set<String>,
+    )
+
+    private fun prepareTranscriptApply(request: RenderRequest): PreparedTranscript {
+        val index = TranscriptRenderer.projectionIndex(
+            request.state,
+            request.thread,
+            request.activeTurnId,
+        )
+        trackReasoningTiming(request.state, index, request.activeTurnId, request.timingSeedMs)
+        val expanded = index.sectionKeys.filter { key ->
+            if (index.isSectionRunning(key)) {
+                key !in request.collapsedWhileRunning
+            } else {
+                key in request.expandedWhenIdle
+            }
+        }.toSet()
+        val options = TranscriptRenderOptions(
+            expandedReasoningIds = expanded,
+            expandedActivityIds = request.expandedActivityIds,
+            reasoningElapsedSeconds = buildElapsedMap(request.state, index, request.timingSeedMs),
+            activeTurnId = request.activeTurnId,
+            localNotices = request.localNotices,
+            project = project,
+            lightweightStreaming = request.activeTurnId != null &&
+                request.state.turns[TurnId(request.activeTurnId)].let { fact ->
+                    fact == null || (
+                        fact.status != TurnStatus.COMPLETED &&
+                            fact.status != TurnStatus.FAILED &&
+                            fact.status != TurnStatus.INTERRUPTED
+                        )
+                },
+        )
+        val blocks = TranscriptRenderer.renderBlocks(request.state, request.thread, options)
+        return PreparedTranscript(
+            blocks = blocks,
+            fingerprint = TranscriptBlock.fingerprints(blocks).joinToString("|"),
+            runningSectionKeys = index.runningSectionKeys,
+            sectionKeys = index.sectionKeys,
+        )
+    }
+
+    private fun applyExpandCollapse(runningNow: Set<String>) {
+        previouslyRunningSections
+            .filter { it !in runningNow }
+            .forEach { key ->
+                userExpandedWhenIdle.remove(key)
+                userCollapsedWhileRunning.remove(key)
+            }
+        previouslyRunningSections.clear()
+        previouslyRunningSections.addAll(runningNow)
+    }
+
     private fun applyTranscriptBlocks(blocks: List<TranscriptBlock>) {
-        val width = transcriptScroll.viewport.width.coerceAtLeast(480)
+        val width = CodexUiTheme.transcriptContentWidth(transcriptScroll.viewport.width)
         val prints = TranscriptBlock.fingerprints(blocks)
 
         var shared = 0
@@ -237,11 +427,11 @@ class CodexChatPanel(
         if (shared < blocks.size &&
             shared < appliedSlots.size &&
             blocks[shared] is TranscriptBlock.Html &&
-            appliedSlots[shared].component is JBHtmlPane
+            appliedSlots[shared].component is HtmlBlockHost
         ) {
-            val pane = appliedSlots[shared].component as JBHtmlPane
-            updateHtmlPane(pane, (blocks[shared] as TranscriptBlock.Html).fragment, width)
-            appliedSlots[shared] = AppliedSlot(prints[shared], pane)
+            val host = appliedSlots[shared].component as HtmlBlockHost
+            host.updateContent((blocks[shared] as TranscriptBlock.Html).fragment, width)
+            appliedSlots[shared] = AppliedSlot(prints[shared], host)
             shared++
             while (shared < appliedSlots.size &&
                 shared < blocks.size &&
@@ -249,6 +439,12 @@ class CodexChatPanel(
             ) {
                 shared++
             }
+        }
+
+        // Shared HTML slots keep fingerprints across width changes — remasure wrap height.
+        for (i in 0 until shared) {
+            val host = appliedSlots[i].component as? HtmlBlockHost ?: continue
+            host.ensureWidth(width)
         }
 
         disposeSlotsFrom(shared)
@@ -270,6 +466,7 @@ class CodexChatPanel(
             transcriptHost.remove(idx)
             when (component) {
                 is CodeFenceCardPanel -> component.dispose()
+                is HtmlBlockHost -> component.dispose()
                 is JBHtmlPane -> component.dispose()
             }
         }
@@ -281,9 +478,7 @@ class CodexChatPanel(
     private fun createBlockComponent(block: TranscriptBlock, width: Int): JComponent =
         when (block) {
             is TranscriptBlock.Html -> {
-                val pane = newHtmlPane()
-                updateHtmlPane(pane, block.fragment, width)
-                pane
+                HtmlBlockHost().also { it.updateContent(block.fragment, width) }
             }
             is TranscriptBlock.ModifiedFiles -> {
                 val card = ModifiedFilesCardPanel(
@@ -304,25 +499,11 @@ class CodexChatPanel(
             }
             is TranscriptBlock.AgentChip -> {
                 val chip = AgentChipPanel(block.agentId, block.statusLabel, block.summary)
+                chip.doLayout()
                 chip.maximumSize = Dimension(Integer.MAX_VALUE, chip.preferredSize.height)
                 chip
             }
         }
-
-    private fun updateHtmlPane(pane: JBHtmlPane, fragment: String, width: Int) {
-        val html = HtmlSwingSafe.sanitize(TranscriptRenderer.wrapDocument(fragment))
-        HtmlSwingSafe.disableBidi(pane)
-        try {
-            pane.text = html
-        } catch (_: Throwable) {
-            pane.text = html.replace(Regex("""</?font\b[^>]*>""", RegexOption.IGNORE_CASE), "")
-        }
-        HtmlSwingSafe.applyUniformContentFont(pane)
-        pane.setSize(width, Short.MAX_VALUE.toInt())
-        val pref = pane.preferredSize
-        pane.preferredSize = Dimension(width, pref.height.coerceAtLeast(24))
-        pane.maximumSize = Dimension(Integer.MAX_VALUE, pane.preferredSize.height)
-    }
 
     private fun isScrolledNearBottom(): Boolean {
         val bar = transcriptScroll.verticalScrollBar
@@ -343,7 +524,12 @@ class CodexChatPanel(
     }
 
     private fun toggleReasoning(sectionKey: String) {
-        val running = isSectionRunning(latestState, sectionKey)
+        val index = TranscriptRenderer.projectionIndex(
+            latestState,
+            model.selectedThread,
+            model.activeTurnId?.value,
+        )
+        val running = index.isSectionRunning(sectionKey)
         if (running) {
             if (!userCollapsedWhileRunning.add(sectionKey)) {
                 userCollapsedWhileRunning.remove(sectionKey)
@@ -363,75 +549,6 @@ class CodexChatPanel(
         renderExternal(latestState)
     }
 
-    /**
-     * While thinking: expand by default (unless user collapsed).
-     * After done: collapse by default (unless user expanded).
-     */
-    private fun effectiveExpandedSections(state: NormalizedServerState): Set<String> {
-        val keys = activitySectionKeys(state)
-        return keys.filter { key ->
-            if (isSectionRunning(state, key)) {
-                key !in userCollapsedWhileRunning
-            } else {
-                key in userExpandedWhenIdle
-            }
-        }.toSet()
-    }
-
-    private fun syncAutoExpandCollapse(state: NormalizedServerState) {
-        val keys = activitySectionKeys(state)
-        val runningNow = keys.filter { isSectionRunning(state, it) }.toSet()
-        // Just finished → force collapse (clear idle pin + running pin).
-        previouslyRunningSections
-            .filter { it !in runningNow }
-            .forEach { key ->
-                userExpandedWhenIdle.remove(key)
-                userCollapsedWhileRunning.remove(key)
-            }
-        previouslyRunningSections.clear()
-        previouslyRunningSections.addAll(runningNow)
-    }
-
-    private fun activitySectionKeys(state: NormalizedServerState): Set<String> {
-        val thread = model.selectedThread ?: return emptySet()
-        val items = state.items.values
-            .filter { it.threadId == thread }
-            .sortedWith(compareBy({ it.arrivalSeq }, { it.id.value }))
-        val activeTurn = model.activeTurnId?.value
-        return items
-            .filter { item ->
-                item is ItemFact.Reasoning ||
-                    item is ItemFact.Command ||
-                    item is ItemFact.Patch ||
-                    item is ItemFact.Subagent ||
-                    (item is ItemFact.AgentMessage &&
-                        TranscriptRenderer.isInterimAgentMessage(item, items, activeTurn))
-            }
-            .map { TranscriptRenderer.activitySectionKey(listOf(it)) }
-            .toSet()
-    }
-
-    private fun isSectionRunning(state: NormalizedServerState, sectionKey: String): Boolean {
-        val thread = model.selectedThread ?: return false
-        val items = state.items.values
-            .filter { it.threadId == thread }
-            .sortedWith(compareBy({ it.arrivalSeq }, { it.id.value }))
-        val activeTurn = model.activeTurnId?.value
-        val turnId = sectionKey.removePrefix("turn-").takeIf { sectionKey.startsWith("turn-") }
-        if (turnId != null && activeTurn == turnId) return true
-        return items.any { item ->
-            val inSection =
-                (item is ItemFact.Reasoning ||
-                    item is ItemFact.Command ||
-                    item is ItemFact.Patch ||
-                    item is ItemFact.Subagent ||
-                    (item is ItemFact.AgentMessage &&
-                        TranscriptRenderer.isInterimAgentMessage(item, items, activeTurn))) &&
-                    TranscriptRenderer.activitySectionKey(listOf(item)) == sectionKey
-            inSection && (item.status == ItemStatus.STARTED || item.status == ItemStatus.ACTIVE)
-        }
-    }
-
     private fun openFile(path: String) {
         ApplicationManager.getApplication().invokeLater {
             try {
@@ -444,9 +561,13 @@ class CodexChatPanel(
         }
     }
 
-    private fun trackReasoningTiming(state: NormalizedServerState) {
-        val now = System.currentTimeMillis()
-        val active = model.activeTurnId?.value
+    private fun trackReasoningTiming(
+        state: NormalizedServerState,
+        index: TranscriptProjectionIndex,
+        activeTurnId: String?,
+        now: Long,
+    ) {
+        val active = activeTurnId
         if (active != null && active != trackedActiveTurn) {
             turnStartedAtMs.putIfAbsent(active, now)
             trackedActiveTurn = active
@@ -481,8 +602,8 @@ class CodexChatPanel(
             }
         }
         // Freeze turn elapsed when activity stops; clear if it resumes (new command/etc).
-        activitySectionKeys(state).forEach { key ->
-            if (isSectionRunning(state, key)) {
+        index.sectionKeys.forEach { key ->
+            if (index.isSectionRunning(key)) {
                 reasoningDoneAtMs.remove(key)
             } else {
                 reasoningDoneAtMs.putIfAbsent(key, now)
@@ -490,14 +611,14 @@ class CodexChatPanel(
         }
     }
 
-    private fun buildElapsedMap(state: NormalizedServerState): Map<String, Long?> {
-        val now = System.currentTimeMillis()
+    private fun buildElapsedMap(
+        state: NormalizedServerState,
+        index: TranscriptProjectionIndex,
+        now: Long,
+    ): Map<String, Long?> {
         val out = LinkedHashMap<String, Long?>()
-        val threadItems = state.items.values
-            .filter { it.threadId == model.selectedThread }
-            .sortedWith(compareBy({ it.arrivalSeq }, { it.id.value }))
         // Per-item elapsed
-        threadItems.forEach { item ->
+        index.items.forEach { item ->
             if (item is ItemFact.Reasoning || item is ItemFact.Command || item is ItemFact.Patch) {
                 val id = item.id.value
                 val start = reasoningSeenAtMs[id] ?: turnStartedAtMs[item.turnId?.value]
@@ -506,10 +627,10 @@ class CodexChatPanel(
             }
         }
         // Per-turn section elapsed
-        activitySectionKeys(state).forEach { key ->
+        index.sectionKeys.forEach { key ->
             val start = reasoningSeenAtMs[key]
                 ?: key.removePrefix("turn-").takeIf { key.startsWith("turn-") }?.let { turnStartedAtMs[it] }
-            val running = isSectionRunning(state, key)
+            val running = index.isSectionRunning(key)
             val end = if (running) now else (reasoningDoneAtMs[key] ?: now)
             out[key] = start?.let { ((end - it) / 1000L).coerceAtLeast(0L) }
         }
@@ -756,7 +877,10 @@ class CodexChatPanel(
     override fun dispose() {
         coalesceTimer?.stop()
         coalesceTimer = null
-        service.serverStateStore().removeListener(stateListener)
+        pendingRender.set(null)
+        if (!embedded) {
+            service.serverStateStore().removeListener(stateListener)
+        }
         disposeSlotsFrom(0)
     }
 

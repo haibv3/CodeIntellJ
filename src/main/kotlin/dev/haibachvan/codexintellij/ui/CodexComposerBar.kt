@@ -7,6 +7,8 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.ui.ColoredListCellRenderer
+import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextArea
@@ -15,6 +17,7 @@ import dev.haibachvan.codexintellij.settings.ApprovalModeOption
 import dev.haibachvan.codexintellij.settings.CodexModelOption
 import dev.haibachvan.codexintellij.settings.ModelCatalog
 import java.awt.BorderLayout
+import java.awt.Cursor
 import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Graphics
@@ -29,6 +32,7 @@ import javax.swing.BorderFactory
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JButton
 import javax.swing.JCheckBox
+import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.JScrollPane
 import kotlin.io.path.relativeToOrNull
@@ -68,34 +72,32 @@ class CodexComposerBar(
             )
         }
     }
-    private val effortCombo = ComboBox<String>()
-    private val approvalCombo = ComboBox(ApprovalModeOption.entries.toTypedArray()).apply {
-        renderer = object : javax.swing.DefaultListCellRenderer() {
-            override fun getListCellRendererComponent(
-                list: javax.swing.JList<*>?,
-                value: Any?,
-                index: Int,
-                isSelected: Boolean,
-                cellHasFocus: Boolean,
-            ) = super.getListCellRendererComponent(
-                list,
-                (value as? ApprovalModeOption)?.label ?: value,
-                index,
-                isSelected,
-                cellHasFocus,
-            )
-        }
-    }
+    private val effortButton = selectorButton(
+        text = CodexModelOption.effortLabel(panelModel.selectedEffort ?: "medium"),
+        accessibleName = "Mức lập luận",
+        toolTip = "Chọn mức reasoning (Thấp / Trung bình / Cao)",
+    )
+    private val approvalButton = selectorButton(
+        text = panelModel.approvalMode.label,
+        accessibleName = "Quyền quyết định",
+        toolTip = "Chọn chế độ phê duyệt lệnh và ghi tệp",
+    )
     private val plusButton = JButton("+").apply {
         toolTipText = "Đính kèm tệp, mục tiêu, kế hoạch hoặc tác nhân"
-        isFocusable = false
+        isFocusable = true
+        isFocusPainted = true
         preferredSize = Dimension(28, 28)
+        getAccessibleContext().accessibleName = "Mở menu đính kèm"
+        getAccessibleContext().accessibleDescription =
+            "Đính kèm tệp, thư mục, mục tiêu, kế hoạch hoặc tác nhân"
     }
     private val ideContext = JCheckBox("Ngữ cảnh IDE", panelModel.ideContextEnabled)
     private val actionButton = CircularActionButton().apply {
         preferredSize = Dimension(34, 34)
         minimumSize = preferredSize
         maximumSize = preferredSize
+        getAccessibleContext().accessibleName = "Gửi tin nhắn"
+        getAccessibleContext().accessibleDescription = "Gửi tin nhắn Codex hoặc dừng phản hồi đang chạy"
     }
     private val attachmentsStrip = ComposerAttachmentsStrip()
     private val hint = JBLabel(placeholder).apply {
@@ -108,7 +110,9 @@ class CodexComposerBar(
     private var busy: Boolean = false
 
     private var plusPopup: JBPopup? = null
+    private var selectorPopup: JBPopup? = null
     private var suggestions: ComposerSuggestionController? = null
+    private var availableEfforts: List<String> = listOf("low", "medium", "high")
 
     init {
         border = JBUI.Borders.empty(8, 10, 10, 10)
@@ -146,14 +150,8 @@ class CodexComposerBar(
         ).also { it.install() }
 
         modelCombo.addActionListener { onModelSelected() }
-        effortCombo.addActionListener {
-            val selected = effortCombo.selectedItem as? String
-            panelModel.setSelectedEffort(selected?.let { CodexModelOption.effortWire(it) })
-            refreshHint()
-        }
-        approvalCombo.addActionListener {
-            (approvalCombo.selectedItem as? ApprovalModeOption)?.let { panelModel.setApprovalMode(it) }
-        }
+        effortButton.addActionListener { showEffortPopup() }
+        approvalButton.addActionListener { showApprovalPopup() }
         ideContext.addActionListener { panelModel.setIdeContextEnabled(ideContext.isSelected) }
         actionButton.addActionListener {
             if (busy) onCancel() else onSend()
@@ -177,7 +175,7 @@ class CodexComposerBar(
             "insert-break",
         )
         setModels(catalog.cached())
-        approvalCombo.selectedItem = panelModel.approvalMode
+        syncApprovalButton()
         setBusy(panelModel.isBusy)
     }
 
@@ -214,13 +212,7 @@ class CodexComposerBar(
         }
         val desiredEffort = panelModel.selectedEffort
         if (!desiredEffort.isNullOrBlank()) {
-            val label = CodexModelOption.effortLabel(desiredEffort)
-            val idx = (0 until effortCombo.itemCount).indexOfFirst {
-                effortCombo.getItemAt(it) == label
-            }
-            if (idx >= 0) {
-                effortCombo.selectedIndex = idx
-            }
+            syncEffortButton(desiredEffort)
         }
         refreshHint()
     }
@@ -233,10 +225,15 @@ class CodexComposerBar(
         } else {
             "Gửi (Enter) · Xuống dòng (Shift+Enter)"
         }
+        actionButton.getAccessibleContext().accessibleName = if (value) {
+            "Dừng phản hồi"
+        } else {
+            "Gửi tin nhắn"
+        }
         composer.isEnabled = !value
         modelCombo.isEnabled = !value
-        effortCombo.isEnabled = !value
-        approvalCombo.isEnabled = !value
+        effortButton.isEnabled = !value
+        approvalButton.isEnabled = !value
         plusButton.isEnabled = !value
         actionButton.repaint()
     }
@@ -278,6 +275,7 @@ class CodexComposerBar(
             .setMovable(false)
             .setCancelOnClickOutside(true)
             .setCancelOnWindowDeactivation(true)
+            .setCancelKeyEnabled(true)
             .createPopup()
         plusPopup = popup
         val screen = plusButton.locationOnScreen
@@ -289,6 +287,10 @@ class CodexComposerBar(
                 ),
             ),
         )
+        // Focus first menu row so Enter/Space/arrows work immediately.
+        javax.swing.SwingUtilities.invokeLater {
+            panel.requestFocusFirstRow()
+        }
     }
 
     private fun attachFiles() {
@@ -335,22 +337,21 @@ class CodexComposerBar(
     private fun onModelSelected() {
         val selected = modelCombo.selectedItem as? CodexModelOption ?: return
         panelModel.setSelectedModel(selected.model)
-        val efforts = selected.efforts.ifEmpty { listOf("low", "medium", "high") }
-        effortCombo.model = DefaultComboBoxModel(efforts.map { CodexModelOption.effortLabel(it) }.toTypedArray())
+        availableEfforts = selected.efforts.ifEmpty { listOf("low", "medium", "high") }
         val current = panelModel.selectedEffort ?: selected.defaultEffort ?: "medium"
-        val label = CodexModelOption.effortLabel(current)
-        effortCombo.selectedItem = if (efforts.any { CodexModelOption.effortLabel(it) == label }) {
-            label
+        val wire = if (availableEfforts.any { it.equals(current, ignoreCase = true) }) {
+            current
         } else {
-            CodexModelOption.effortLabel(selected.defaultEffort ?: efforts.first())
+            selected.defaultEffort ?: availableEfforts.first()
         }
-        panelModel.setSelectedEffort(CodexModelOption.effortWire(effortCombo.selectedItem as String))
+        panelModel.setSelectedEffort(wire)
+        syncEffortButton(wire)
         refreshHint()
     }
 
     private fun refreshHint() {
         val model = modelCombo.selectedItem as? CodexModelOption
-        val effort = effortCombo.selectedItem as? String
+        val effort = effortButton.text.takeIf { it.isNotBlank() }
         hint.text = if (model == null) {
             placeholder
         } else {
@@ -358,17 +359,105 @@ class CodexComposerBar(
         }
     }
 
+    private fun syncEffortButton(wire: String) {
+        effortButton.text = CodexModelOption.effortLabel(wire) + " ▾"
+    }
+
+    private fun syncApprovalButton() {
+        approvalButton.text = panelModel.approvalMode.label + " ▾"
+    }
+
+    private fun showEffortPopup() {
+        selectorPopup?.cancel()
+        val items = availableEfforts.map { CodexModelOption.effortLabel(it) }
+        val selectedLabel = CodexModelOption.effortLabel(panelModel.selectedEffort ?: "medium")
+        val popup = JBPopupFactory.getInstance()
+            .createPopupChooserBuilder(items)
+            .setTitle("Mức lập luận")
+            .setSelectedValue(selectedLabel, true)
+            .setItemChosenCallback { label ->
+                val wire = CodexModelOption.effortWire(label)
+                panelModel.setSelectedEffort(wire)
+                syncEffortButton(wire)
+                refreshHint()
+            }
+            .setRenderer(object : ColoredListCellRenderer<String>() {
+                override fun customizeCellRenderer(
+                    list: JList<out String>,
+                    value: String?,
+                    index: Int,
+                    selected: Boolean,
+                    hasFocus: Boolean,
+                ) {
+                    append(value ?: "", SimpleTextAttributes.REGULAR_ATTRIBUTES)
+                }
+            })
+            .setCancelOnClickOutside(true)
+            .setRequestFocus(true)
+            .createPopup()
+        selectorPopup = popup
+        popup.showUnderneathOf(effortButton)
+    }
+
+    private fun showApprovalPopup() {
+        selectorPopup?.cancel()
+        val items = ApprovalModeOption.entries.toList()
+        val popup = JBPopupFactory.getInstance()
+            .createPopupChooserBuilder(items)
+            .setTitle("Quyền quyết định")
+            .setSelectedValue(panelModel.approvalMode, true)
+            .setItemChosenCallback { mode ->
+                panelModel.setApprovalMode(mode)
+                syncApprovalButton()
+            }
+            .setRenderer(object : ColoredListCellRenderer<ApprovalModeOption>() {
+                override fun customizeCellRenderer(
+                    list: JList<out ApprovalModeOption>,
+                    value: ApprovalModeOption?,
+                    index: Int,
+                    selected: Boolean,
+                    hasFocus: Boolean,
+                ) {
+                    if (value == null) return
+                    append(value.label, SimpleTextAttributes.REGULAR_ATTRIBUTES)
+                    append("  ", SimpleTextAttributes.REGULAR_ATTRIBUTES)
+                    append(value.description, SimpleTextAttributes.GRAYED_ATTRIBUTES)
+                }
+            })
+            .setCancelOnClickOutside(true)
+            .setRequestFocus(true)
+            .createPopup()
+        selectorPopup = popup
+        popup.showUnderneathOf(approvalButton)
+    }
+
+    private fun selectorButton(text: String, accessibleName: String, toolTip: String): JButton =
+        JButton("$text ▾").apply {
+            isOpaque = false
+            isContentAreaFilled = false
+            isBorderPainted = false
+            isFocusPainted = true
+            isFocusable = true
+            foreground = CodexUiTheme.foreground
+            font = CodexUiFonts.body()
+            cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+            margin = JBUI.insets(2, 6)
+            toolTipText = toolTip
+            getAccessibleContext().accessibleName = accessibleName
+            getAccessibleContext().accessibleDescription = toolTip
+        }
+
     private fun buildToolbar(): JPanel {
         val bar = JPanel(GridBagLayout())
         val left = JPanel(FlowLayout(FlowLayout.LEFT, 6, 0)).apply {
             isOpaque = false
             add(plusButton)
-            add(approvalCombo)
+            add(approvalButton)
         }
         val right = JPanel(FlowLayout(FlowLayout.RIGHT, 6, 0)).apply {
             isOpaque = false
             add(modelCombo)
-            add(effortCombo)
+            add(effortButton)
             add(ideContext)
             add(actionButton)
         }
@@ -395,6 +484,7 @@ class CodexComposerBar(
             isContentAreaFilled = false
             isBorderPainted = false
             isFocusPainted = false
+            isFocusable = true
             cursor = java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR)
         }
 
@@ -426,6 +516,11 @@ class CodexComposerBar(
                 g2.drawLine(cx, cy + shaft / 2, cx, cy - shaft / 2)
                 g2.drawLine(cx, cy - shaft / 2, cx - head, cy - shaft / 2 + head)
                 g2.drawLine(cx, cy - shaft / 2, cx + head, cy - shaft / 2 + head)
+            }
+            if (hasFocus() && model.isEnabled) {
+                g2.color = CodexUiTheme.focusRing
+                g2.stroke = java.awt.BasicStroke(1.6f)
+                g2.drawOval(x - 1, y - 1, size + 2, size + 2)
             }
             g2.dispose()
         }

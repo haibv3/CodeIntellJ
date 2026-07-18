@@ -36,7 +36,7 @@ internal object CodexToolWindowHeader {
                 e.presentation.isEnabled = !isStarting()
             }
 
-            override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+            override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
         }
 
     fun disconnectAction(isReady: () -> Boolean, onDisconnect: () -> Unit): AnAction =
@@ -51,7 +51,7 @@ internal object CodexToolWindowHeader {
                 e.presentation.isEnabledAndVisible = isReady()
             }
 
-            override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+            override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
         }
 
     fun newChatAction(isReady: () -> Boolean, onNewChat: () -> Unit): AnAction =
@@ -62,7 +62,7 @@ internal object CodexToolWindowHeader {
                 e.presentation.isEnabled = isReady()
             }
 
-            override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+            override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
         }
 
     fun styleStatusLabel(label: JLabel) {

@@ -98,6 +98,17 @@ class CodexProjectService(
         )
     }
 
+    /**
+     * Cheap lifecycle probe for action updates / status labels.
+     * Never runs binary discovery or `codex --version` (those block for hundreds of ms).
+     */
+    fun lifecycleStateName(): String? =
+        synchronized(sessionLock) { gateway?.status()?.state?.name }
+
+    /** Confirmed binary version from disk store only — no process spawn. */
+    fun confirmedBinaryVersion(): String? =
+        trustPolicy.loadConfirmed()?.versionText
+
     fun trustPolicy(): CodexBinaryTrustPolicy = trustPolicy
 
     fun gateway(): AppServerGateway? = synchronized(sessionLock) { gateway }

@@ -142,24 +142,31 @@ class ModifiedFilesCardPanel(
                 BorderFactory.createMatteBorder(1, 0, 0, 0, divider),
                 JBUI.Borders.empty(12, 0, 12, 0),
             )
-            val pathLabel = object : JLabel(display) {
-                init {
-                    foreground = muted
-                    font = CodexUiFonts.body()
-                    cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
-                    toolTipText = file.path
-                }
+            val pathButton = JButton(display).apply {
+                isOpaque = false
+                isContentAreaFilled = false
+                isBorderPainted = false
+                isFocusPainted = true
+                isFocusable = true
+                horizontalAlignment = SwingConstants.LEFT
+                foreground = muted
+                font = CodexUiFonts.body()
+                cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                toolTipText = file.path
+                margin = JBUI.emptyInsets()
+                getAccessibleContext().accessibleName = "Mở tệp $display"
+                getAccessibleContext().accessibleDescription = "Mở ${file.path} trong trình soạn thảo"
+                addActionListener { onOpenFile(file.path) }
+                addMouseListener(object : MouseAdapter() {
+                    override fun mouseEntered(e: MouseEvent?) {
+                        foreground = CodexUiTheme.accent
+                    }
+                    override fun mouseExited(e: MouseEvent?) {
+                        foreground = muted
+                    }
+                })
             }
-            pathLabel.addMouseListener(object : MouseAdapter() {
-                override fun mouseClicked(e: MouseEvent?) = onOpenFile(file.path)
-                override fun mouseEntered(e: MouseEvent?) {
-                    pathLabel.foreground = CodexUiTheme.accent
-                }
-                override fun mouseExited(e: MouseEvent?) {
-                    pathLabel.foreground = muted
-                }
-            })
-            add(pathLabel, BorderLayout.CENTER)
+            add(pathButton, BorderLayout.CENTER)
             add(diffDelta(file.counts.added, file.counts.removed, barWidth = 40), BorderLayout.EAST)
         }
     }
@@ -211,12 +218,15 @@ class ModifiedFilesCardPanel(
             isOpaque = false
             isContentAreaFilled = false
             isBorderPainted = false
+            isFocusPainted = true
+            isFocusable = true
             foreground = muted
             font = CodexUiFonts.body()
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
             margin = JBUI.insets(4, 6)
             horizontalTextPosition = SwingConstants.LEFT
             iconTextGap = 4
+            getAccessibleContext().accessibleName = text
             addActionListener { onClick() }
             addMouseListener(object : MouseAdapter() {
                 override fun mouseEntered(e: MouseEvent?) {
@@ -234,12 +244,16 @@ class ModifiedFilesCardPanel(
                 isOpaque = false
                 isContentAreaFilled = false
                 isBorderPainted = false
+                isFocusPainted = true
+                isFocusable = true
                 foreground = fg
                 font = CodexUiFonts.body(Font.BOLD)
                 cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
                 margin = JBUI.insets(0)
                 border = JBUI.Borders.empty(7, 16)
                 horizontalAlignment = SwingConstants.CENTER
+                getAccessibleContext().accessibleName = "Xem xét"
+                getAccessibleContext().accessibleDescription = "Mở diff xem xét các tệp đã chỉnh sửa"
                 addActionListener { onClick() }
                 // Lock size to full label — IntelliJ button UI otherwise ellipsizes in tight headers.
                 val fm = getFontMetrics(font)
@@ -252,10 +266,14 @@ class ModifiedFilesCardPanel(
             override fun paintComponent(g: Graphics) {
                 val g2 = g.create() as Graphics2D
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-                val bg = if (model.isRollover) CodexUiTheme.cardBorder else CodexUiTheme.codeBg
+                val bg = when {
+                    hasFocus() -> CodexUiTheme.selectionBg
+                    model.isRollover -> CodexUiTheme.hoverBg
+                    else -> CodexUiTheme.codeBg
+                }
                 g2.color = bg
                 g2.fill(RoundRectangle2D.Float(0.5f, 0.5f, width - 1f, height - 1f, 10f, 10f))
-                g2.color = CodexUiTheme.cardBorder
+                g2.color = if (hasFocus()) CodexUiTheme.focusRing else CodexUiTheme.cardBorder
                 g2.draw(RoundRectangle2D.Float(0.5f, 0.5f, width - 1f, height - 1f, 10f, 10f))
                 g2.dispose()
                 super.paintComponent(g)

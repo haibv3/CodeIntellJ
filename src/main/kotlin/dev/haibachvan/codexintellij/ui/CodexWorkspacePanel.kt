@@ -605,8 +605,7 @@ class CodexWorkspacePanel(
     }
 
     private fun ensureConnected() {
-        val lifecycle = service.compatibilitySnapshot().lifecycleState
-        if (lifecycle != "Ready") {
+        if (service.lifecycleStateName() != "Ready") {
             service.connectAppServer()
         }
         val models = service.modelCatalog().refresh().get()
@@ -725,17 +724,19 @@ class CodexWorkspacePanel(
     }
 
     fun refreshStatus() {
-        val snap = service.compatibilitySnapshot()
+        // Keep this EDT-safe: never call compatibilitySnapshot()/revalidate (spawns processes).
+        val state = service.lifecycleStateName()
         val cwdName = service.projectCwd()?.fileName?.toString()
-        statusLabel.text = when (snap.lifecycleState) {
+        val binaryVersion = service.confirmedBinaryVersion()
+        statusLabel.text = when (state) {
             "Ready" -> buildString {
                 append("Đã kết nối")
                 if (!cwdName.isNullOrBlank()) append(" · ").append(cwdName)
-                snap.binaryVersion?.let { append(" · ").append(it) }
+                binaryVersion?.let { append(" · ").append(it) }
             }
             "Starting" -> "Đang kết nối…"
             null, "Stopped" -> "Chưa kết nối"
-            else -> snap.lifecycleState
+            else -> state
         }
         statusLabel.toolTipText = service.projectCwd()?.toString()
             ?: "Không xác định được thư mục project"
@@ -744,10 +745,10 @@ class CodexWorkspacePanel(
     }
 
     private fun lifecycleReady(): Boolean =
-        service.compatibilitySnapshot().lifecycleState == "Ready"
+        service.lifecycleStateName() == "Ready"
 
     private fun lifecycleStarting(): Boolean =
-        service.compatibilitySnapshot().lifecycleState == "Starting"
+        service.lifecycleStateName() == "Starting"
 
     private fun autoConnect() {
         statusLabel.text = "Đang kết nối…"

@@ -1,11 +1,9 @@
 package dev.haibachvan.codexintellij.ui
 
 import com.intellij.icons.AllIcons
-import com.intellij.ui.JBColor
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
-import java.awt.Color
 import java.awt.Component
 import java.awt.Cursor
 import java.awt.Dimension
@@ -15,8 +13,6 @@ import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.Image
 import java.awt.RenderingHints
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
 import java.awt.geom.RoundRectangle2D
 import java.nio.file.Files
 import javax.imageio.ImageIO
@@ -92,10 +88,10 @@ class ComposerAttachmentsStrip(
         }
         val imageLabel = JBLabel(thumb).apply {
             setBounds(0, 6, size, size)
-            border = BorderFactory.createLineBorder(JBColor.border(), 1, true)
+            border = BorderFactory.createLineBorder(CodexUiTheme.border, 1, true)
             horizontalAlignment = SwingConstants.CENTER
         }
-        val close = closeButton().apply {
+        val close = closeButton(att.fileName).apply {
             setBounds(size - 10, 0, 18, 18)
             addActionListener { remove(att.id) }
         }
@@ -107,15 +103,16 @@ class ComposerAttachmentsStrip(
     private fun fileChip(att: ComposerAttachment): JPanel {
         val chip = JPanel(BorderLayout(8, 0)).apply {
             isOpaque = true
-            background = JBColor(Color(0x3A3A3A), Color(0x3A3A3A))
+            background = CodexUiTheme.attachmentChipBg
             border = BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(JBColor(Color(0x4A4A4A), Color(0x4A4A4A)), 1, true),
+                BorderFactory.createLineBorder(CodexUiTheme.attachmentChipBorder, 1, true),
                 JBUI.Borders.empty(6, 10, 6, 6),
             )
             preferredSize = Dimension(180, 44)
             maximumSize = preferredSize
             cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
             toolTipText = att.displayPath
+            getAccessibleContext().accessibleName = "Đính kèm ${att.fileName}"
         }
         val icon = JBLabel(
             if (att.kind == ComposerAttachment.Kind.FOLDER) {
@@ -133,29 +130,35 @@ class ComposerAttachmentsStrip(
             })
             add(Box.createVerticalStrut(1))
             add(JBLabel(att.subtitle).apply {
-                foreground = JBColor.GRAY
+                foreground = CodexUiTheme.muted
                 font = font.deriveFont(Font.PLAIN, CodexUiFonts.META)
                 alignmentX = Component.LEFT_ALIGNMENT
             })
         }
         chip.add(icon, BorderLayout.WEST)
         chip.add(texts, BorderLayout.CENTER)
-        chip.add(closeButton().also { it.addActionListener { remove(att.id) } }, BorderLayout.EAST)
+        chip.add(
+            closeButton(att.fileName).also { it.addActionListener { remove(att.id) } },
+            BorderLayout.EAST,
+        )
         return chip
     }
 
-    private fun closeButton(): JButton =
+    private fun closeButton(fileName: String): JButton =
         object : JButton() {
             init {
                 isOpaque = false
                 isContentAreaFilled = false
                 isBorderPainted = false
-                isFocusPainted = false
+                isFocusPainted = true
+                isFocusable = true
                 preferredSize = Dimension(18, 18)
                 minimumSize = preferredSize
                 maximumSize = preferredSize
                 cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
                 toolTipText = "Gỡ đính kèm"
+                getAccessibleContext().accessibleName = "Gỡ đính kèm $fileName"
+                getAccessibleContext().accessibleDescription = "Gỡ tệp đính kèm $fileName khỏi tin nhắn"
             }
 
             override fun paintComponent(g: Graphics) {
@@ -164,20 +167,20 @@ class ComposerAttachmentsStrip(
                 val d = minOf(width, height) - 2
                 val x = (width - d) / 2
                 val y = (height - d) / 2
-                g2.color = JBColor(Color(0x555555), Color(0x555555))
+                g2.color = CodexUiTheme.attachmentCloseBg
                 g2.fillOval(x, y, d, d)
-                g2.color = JBColor(Color(0xE0E0E0), Color(0xE0E0E0))
+                g2.color = CodexUiTheme.attachmentCloseFg
                 g2.stroke = java.awt.BasicStroke(1.4f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND)
                 val pad = (d * 0.28).toInt()
                 g2.drawLine(x + pad, y + pad, x + d - pad, y + d - pad)
                 g2.drawLine(x + d - pad, y + pad, x + pad, y + d - pad)
+                if (hasFocus()) {
+                    g2.color = CodexUiTheme.focusRing
+                    g2.stroke = java.awt.BasicStroke(1.2f)
+                    g2.drawOval(x - 1, y - 1, d + 2, d + 2)
+                }
                 g2.dispose()
             }
-        }.also { btn ->
-            btn.addMouseListener(object : MouseAdapter() {
-                override fun mouseEntered(e: MouseEvent) = btn.repaint()
-                override fun mouseExited(e: MouseEvent) = btn.repaint()
-            })
         }
 
     private fun loadThumbnail(att: ComposerAttachment, size: Int): ImageIcon {
@@ -195,9 +198,9 @@ class ComposerAttachmentsStrip(
     private fun placeholderIcon(size: Int): ImageIcon {
         val img = java.awt.image.BufferedImage(size, size, java.awt.image.BufferedImage.TYPE_INT_RGB)
         val g = img.createGraphics()
-        g.color = Color(0x4A4A4A)
+        g.color = CodexUiTheme.attachmentChipBg
         g.fill(RoundRectangle2D.Float(0f, 0f, size.toFloat(), size.toFloat(), 6f, 6f))
-        g.color = Color(0xAAAAAA)
+        g.color = CodexUiTheme.muted
         g.font = Font(Font.SANS_SERIF, Font.PLAIN, CodexUiFonts.META_PX)
         g.drawString("IMG", size / 2 - 10, size / 2 + 4)
         g.dispose()

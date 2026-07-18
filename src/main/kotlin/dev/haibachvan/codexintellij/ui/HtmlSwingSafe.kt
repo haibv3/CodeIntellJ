@@ -1,6 +1,10 @@
 package dev.haibachvan.codexintellij.ui
 
+import java.awt.Dimension
 import javax.swing.JEditorPane
+import javax.swing.text.View
+import kotlin.math.ceil
+import kotlin.math.max
 
 /**
  * Swing HTMLEditorKit + Bidi is fragile with supplementary-plane chars (emoji).
@@ -62,5 +66,36 @@ object HtmlSwingSafe {
             val doc = pane.document as? javax.swing.text.html.HTMLDocument ?: return@runCatching
             doc.styleSheet.addStyleSheet(sheet)
         }
+    }
+
+    /**
+     * Measure HTML content height for a fixed width.
+     * [JEditorPane.getPreferredSize] alone often underestimates wrapped HTML (clips / overlaps
+     * in BoxLayout); ask the root [View] after forcing a width.
+     */
+    fun measurePreferredHeight(pane: JEditorPane, width: Int): Int {
+        val w = width.coerceAtLeast(1)
+        // Reset size so BasicTextUI rebuilds root-view metrics before measuring.
+        pane.setSize(0, 0)
+        pane.setSize(w, Short.MAX_VALUE.toInt())
+        val insets = pane.insets
+        val contentW = (w - insets.left - insets.right).coerceAtLeast(1).toFloat()
+        val fromView = runCatching {
+            val root = pane.ui.getRootView(pane)
+            root.setSize(contentW, Float.MAX_VALUE)
+            ceil(root.getPreferredSpan(View.Y_AXIS).toDouble()).toInt() + insets.top + insets.bottom
+        }.getOrDefault(0)
+        val fromPref = pane.preferredSize.height
+        // Small padding covers border/radius paint that View span sometimes omits.
+        return max(fromView, fromPref).coerceAtLeast(24) + 4
+    }
+
+    fun applyMeasuredSize(pane: JEditorPane, width: Int): Dimension {
+        val h = measurePreferredHeight(pane, width)
+        val size = Dimension(width.coerceAtLeast(1), h)
+        // Do not freeze pane.maximumSize — only callers/hosts should lock layout height.
+        pane.preferredSize = size
+        pane.minimumSize = Dimension(0, h)
+        return size
     }
 }

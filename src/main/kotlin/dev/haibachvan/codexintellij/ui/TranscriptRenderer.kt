@@ -30,10 +30,30 @@ data class TranscriptRenderOptions(
     val lightweightStreaming: Boolean = false,
 )
 
+/** Precomputed thread classification for O(n) transcript projection and EDT queries. */
+data class TranscriptProjectionIndex(
+    val items: List<ItemFact>,
+    val interimAgentIds: Set<String>,
+    val activityByKey: Map<String, List<ItemFact>>,
+    val sectionKeys: Set<String>,
+    val runningSectionKeys: Set<String>,
+) {
+    fun isInterim(item: ItemFact.AgentMessage): Boolean = item.id.value in interimAgentIds
+
+    fun activityItems(key: String): List<ItemFact> = activityByKey[key].orEmpty()
+
+    fun isSectionRunning(key: String): Boolean = key in runningSectionKeys
+}
+
 /** Renders normalized server state as themed HTML matching Codex IDE chat layout. */
 object TranscriptRenderer {
     /** Must be a regular (non-raw) string — `"""\u29C9"""` stays literal in Kotlin. */
     private const val COPY_GLYPH = "\u29C9"
+
+    /** Item visits during the last [projectionIndex] build (tests assert near-linear work). */
+    @Volatile
+    var lastProjectionItemVisits: Int = 0
+        internal set
 
     private val markdown by lazy {
         MarkdownToHtmlConverter(GFMFlavourDescriptor())
@@ -79,13 +99,8 @@ object TranscriptRenderer {
                 ),
             )
         }
-        val items = if (threadId == null) {
-            emptyList()
-        } else {
-            state.items.values
-                .filter { it.threadId == threadId }
-                .sortedWith(compareBy({ it.arrivalSeq }, { it.id.value }))
-        }
+        val index = projectionIndex(state, threadId, options.activeTurnId)
+        val items = index.items
         if (items.isEmpty() && options.localNotices.isEmpty()) {
             return listOf(
                 TranscriptBlock.Html(
@@ -127,10 +142,10 @@ object TranscriptRenderer {
             when (item) {
                 is ItemFact.UserMessage -> html.append(userBlock(item.text))
                 is ItemFact.AgentMessage -> {
-                    if (isInterimAgentMessage(item, items, options.activeTurnId)) {
+                    if (index.isInterim(item)) {
                         val key = activitySectionKey(listOf(item))
                         if (emittedActivityKeys.add(key)) {
-                            val sectionItems = activityItemsForKey(items, key, options.activeTurnId)
+                            val sectionItems = index.activityItems(key)
                             html.append(activitySection(sectionItems, options))
                             flushHtml()
                             emitAgentChips(sectionItems)
@@ -141,7 +156,7 @@ object TranscriptRenderer {
                             blocks += block
                         }
                         val key = activitySectionKey(listOf(item))
-                        val sectionItems = activityItemsForKey(items, key, options.activeTurnId)
+                        val sectionItems = index.activityItems(key)
                         emitModifiedFiles(sectionItems)
                         emitAgentChips(sectionItems)
                     }
@@ -165,7 +180,7 @@ object TranscriptRenderer {
                 -> {
                     val key = activitySectionKey(listOf(item))
                     if (!emittedActivityKeys.add(key)) continue
-                    val sectionItems = activityItemsForKey(items, key, options.activeTurnId)
+                    val sectionItems = index.activityItems(key)
                     html.append(activitySection(sectionItems, options))
                     flushHtml()
                     emitAgentChips(sectionItems)
@@ -181,12 +196,9 @@ object TranscriptRenderer {
             )
         }
         flushHtml()
-        for (key in items
-            .filter { isActivityItem(it, items, options.activeTurnId) }
-            .map { activitySectionKey(listOf(it)) }
-            .distinct()) {
+        for (key in index.sectionKeys) {
             if (key in emittedPatchKeys) continue
-            emitModifiedFiles(activityItemsForKey(items, key, options.activeTurnId))
+            emitModifiedFiles(index.activityItems(key))
         }
         // Any subagent not yet shown (edge ordering).
         for (sub in items.filterIsInstance<ItemFact.Subagent>()) {
@@ -200,6 +212,72 @@ object TranscriptRenderer {
         return blocks
     }
 
+    /**
+     * One-pass classification/grouping for a thread. O(n log n) sort + O(n) scans.
+     * Prefer this over calling [isInterimAgentMessage] in a loop on the EDT.
+     */
+    fun projectionIndex(
+        state: NormalizedServerState,
+        threadId: ThreadId?,
+        activeTurnId: String?,
+    ): TranscriptProjectionIndex {
+        val items = if (threadId == null) {
+            emptyList()
+        } else {
+            state.items.values
+                .filter { it.threadId == threadId }
+                .sortedWith(compareBy({ it.arrivalSeq }, { it.id.value }))
+        }
+        return projectionIndex(items, activeTurnId)
+    }
+
+    fun projectionIndex(
+        items: List<ItemFact>,
+        activeTurnId: String?,
+    ): TranscriptProjectionIndex {
+        var visits = 0
+        val byTurn = LinkedHashMap<String, MutableList<ItemFact>>()
+        for (item in items) {
+            visits++
+            byTurn.getOrPut(turnGroupKey(item)) { ArrayList() }.add(item)
+        }
+        val interimAgentIds = HashSet<String>()
+        for (turnItems in byTurn.values) {
+            visits += turnItems.size
+            interimAgentIds += classifyInterimAgentIds(turnItems, activeTurnId)
+        }
+        val activityByKey = LinkedHashMap<String, MutableList<ItemFact>>()
+        for (item in items) {
+            visits++
+            val activity = isNonAgentActivity(item) ||
+                (item is ItemFact.AgentMessage && item.id.value in interimAgentIds)
+            if (!activity) continue
+            val key = activitySectionKey(listOf(item))
+            activityByKey.getOrPut(key) { ArrayList() }.add(item)
+        }
+        val running = HashSet<String>()
+        if (activeTurnId != null) {
+            running += "turn-$activeTurnId"
+        }
+        for ((key, sectionItems) in activityByKey) {
+            visits += sectionItems.size
+            if (sectionItems.any {
+                    it.status == ItemStatus.STARTED || it.status == ItemStatus.ACTIVE
+                }
+            ) {
+                running += key
+            }
+        }
+        lastProjectionItemVisits = visits
+        return TranscriptProjectionIndex(
+            items = items,
+            interimAgentIds = interimAgentIds,
+            activityByKey = activityByKey,
+            sectionKeys = activityByKey.keys.toSet(),
+            runningSectionKeys = running,
+        )
+    }
+
     private fun agentStatusLabel(status: ItemStatus): String =
         when (status) {
             ItemStatus.COMPLETED -> "hoàn tất"
@@ -211,13 +289,11 @@ object TranscriptRenderer {
 
     fun lastAgentText(state: NormalizedServerState, threadId: ThreadId?): String? {
         if (threadId == null) return null
-        val items = state.items.values
-            .filter { it.threadId == threadId }
-            .sortedWith(compareBy({ it.arrivalSeq }, { it.id.value }))
-        return items
+        val index = projectionIndex(state, threadId, activeTurnId = null)
+        return index.items
             .asSequence()
             .filterIsInstance<ItemFact.AgentMessage>()
-            .filter { !isInterimAgentMessage(it, items, activeTurnId = null) }
+            .filter { !index.isInterim(it) }
             .maxByOrNull { it.arrivalSeq }
             ?.text
             ?.takeIf { it.isNotBlank() }
@@ -276,32 +352,7 @@ object TranscriptRenderer {
     ): Boolean {
         val turnItems = threadItems.filter { sameTurn(it, item) }
             .sortedWith(compareBy({ it.arrivalSeq }, { it.id.value }))
-        val agents = turnItems.filterIsInstance<ItemFact.AgentMessage>()
-        val lastAgent = agents.lastOrNull() ?: return false
-        if (lastAgent.id != item.id) return true
-
-        val othersBusy = turnItems.any { other ->
-            other.id != item.id &&
-                (other.status == ItemStatus.STARTED || other.status == ItemStatus.ACTIVE)
-        }
-        if (othersBusy) return true
-
-        val turnId = item.turnId?.value
-        val turnMarkedActive = activeTurnId != null && turnId != null && turnId == activeTurnId
-        if (turnMarkedActive) {
-            val streaming = item.status == ItemStatus.STARTED || item.status == ItemStatus.ACTIVE
-            if (!streaming) return true // completed progress notes stay folded
-            // Streaming: treat as final result only after earlier work in this turn.
-            val priorWork = turnItems.any { it.id != item.id }
-            return !priorWork
-        }
-
-        // Finished turn: last agent is result unless tool/reasoning activity came after it.
-        return turnItems.any { other ->
-            isNonAgentActivity(other) &&
-                (other.arrivalSeq > item.arrivalSeq ||
-                    (other.arrivalSeq == item.arrivalSeq && other.id.value > item.id.value))
-        }
+        return item.id.value in classifyInterimAgentIds(turnItems, activeTurnId)
     }
 
     internal fun thinkingLabel(elapsedSeconds: Long?, stillRunning: Boolean): String =
@@ -311,6 +362,11 @@ object TranscriptRenderer {
             elapsedSeconds == null -> "Thinking"
             else -> "Đã hoạt động trong ${elapsedSeconds}s"
         }
+
+    private fun turnGroupKey(item: ItemFact): String {
+        val turn = item.turnId
+        return if (turn != null) "t:${turn.value}" else "i:${item.id.value}"
+    }
 
     private fun sameTurn(a: ItemFact, b: ItemFact): Boolean {
         val turnA = a.turnId
@@ -324,22 +380,54 @@ object TranscriptRenderer {
             item is ItemFact.Patch ||
             item is ItemFact.Subagent
 
-    private fun isActivityItem(
-        item: ItemFact,
-        threadItems: List<ItemFact>,
+    /**
+     * Classify interim agent messages for one already-sorted turn group in O(group size).
+     */
+    private fun classifyInterimAgentIds(
+        turnItems: List<ItemFact>,
         activeTurnId: String?,
-    ): Boolean =
-        isNonAgentActivity(item) ||
-            (item is ItemFact.AgentMessage && isInterimAgentMessage(item, threadItems, activeTurnId))
-
-    private fun activityItemsForKey(
-        threadItems: List<ItemFact>,
-        key: String,
-        activeTurnId: String?,
-    ): List<ItemFact> =
-        threadItems.filter { item ->
-            isActivityItem(item, threadItems, activeTurnId) && activitySectionKey(listOf(item)) == key
+    ): Set<String> {
+        val agents = turnItems.filterIsInstance<ItemFact.AgentMessage>()
+        if (agents.isEmpty()) return emptySet()
+        val lastAgent = agents.last()
+        val busyIds = turnItems
+            .filter { it.status == ItemStatus.STARTED || it.status == ItemStatus.ACTIVE }
+            .mapTo(HashSet()) { it.id }
+        val interim = HashSet<String>()
+        for (agent in agents) {
+            if (agent.id != lastAgent.id) {
+                interim += agent.id.value
+                continue
+            }
+            if (busyIds.any { it != agent.id }) {
+                interim += agent.id.value
+                continue
+            }
+            val turnId = agent.turnId?.value
+            val turnMarkedActive = activeTurnId != null && turnId != null && turnId == activeTurnId
+            if (turnMarkedActive) {
+                val streaming = agent.status == ItemStatus.STARTED || agent.status == ItemStatus.ACTIVE
+                if (!streaming) {
+                    interim += agent.id.value
+                    continue
+                }
+                val priorWork = turnItems.any { it.id != agent.id }
+                if (!priorWork) {
+                    interim += agent.id.value
+                }
+                continue
+            }
+            val activityAfter = turnItems.any { other ->
+                isNonAgentActivity(other) &&
+                    (other.arrivalSeq > agent.arrivalSeq ||
+                        (other.arrivalSeq == agent.arrivalSeq && other.id.value > agent.id.value))
+            }
+            if (activityAfter) {
+                interim += agent.id.value
+            }
         }
+        return interim
+    }
 
     private fun activitySection(items: List<ItemFact>, options: TranscriptRenderOptions): String {
         val key = activitySectionKey(items)

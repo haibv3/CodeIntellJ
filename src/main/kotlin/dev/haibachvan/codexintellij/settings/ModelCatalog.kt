@@ -45,10 +45,26 @@ data class CodexModelOption(
     }
 }
 
-enum class ApprovalModeOption(val wire: String, val label: String) {
-    FULL_ACCESS("never", "Toàn quyền tiếp cận"),
-    ON_REQUEST("on-request", "Hỏi khi cần"),
-    RESTRICTED("untrusted", "Hạn chế"),
+enum class ApprovalModeOption(
+    val wire: String,
+    val label: String,
+    val description: String,
+) {
+    FULL_ACCESS(
+        "never",
+        "Toàn quyền quyết định",
+        "Tự chạy lệnh và sửa tệp mà không hỏi",
+    ),
+    ON_REQUEST(
+        "on-request",
+        "Hỏi khi cần",
+        "Hỏi trước khi chạy lệnh hoặc ghi tệp",
+    ),
+    RESTRICTED(
+        "untrusted",
+        "Hạn chế",
+        "Chỉ cho phép thao tác đọc / an toàn",
+    ),
 }
 
 class ModelCatalog(
