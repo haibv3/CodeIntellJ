@@ -13,7 +13,7 @@ plugins {
 }
 
 group = "dev.haibachvan"
-version = "0.1.3"
+version = "0.1.5"
 
 val javaVersion: String by project
 val platformVersion: String by project

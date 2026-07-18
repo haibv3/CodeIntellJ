@@ -55,4 +55,8 @@ data class CoalesceKey(
     val turnId: String?,
     val itemId: String?,
     val deltaKind: SequencedEventKind,
+    /** Wire method — keeps reasoning summary/raw streams from mixing under coalesce. */
+    val method: String = "",
+    /** summaryIndex / contentIndex for reasoning delta streams. */
+    val streamIndex: Long? = null,
 )

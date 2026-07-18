@@ -6,8 +6,14 @@ import dev.haibachvan.codexintellij.appserver.SequencedEvent
 import dev.haibachvan.codexintellij.appserver.SequencedEventKind
 import dev.haibachvan.codexintellij.appserver.WireEnvelope
 import dev.haibachvan.codexintellij.session.ConversationReducer
+import dev.haibachvan.codexintellij.session.ItemFact
+import dev.haibachvan.codexintellij.session.ItemId
+import dev.haibachvan.codexintellij.session.ItemStatus
+import dev.haibachvan.codexintellij.session.NormalizedServerState
 import dev.haibachvan.codexintellij.session.ServerStateStore
+import dev.haibachvan.codexintellij.session.TerminalRank
 import dev.haibachvan.codexintellij.session.ThreadId
+import dev.haibachvan.codexintellij.session.TurnId
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -56,9 +62,9 @@ class TranscriptRendererTest {
 
         val blocks = TranscriptRenderer.renderBlocks(store.snapshot(), ThreadId("t1"))
 
-        val plain = blocks.single { it.id == "item:plain:prose:0" }
+        val plain = blocks.single { it.id == "item:t1:plain:prose:0" }
         org.junit.jupiter.api.Assertions.assertInstanceOf(TranscriptBlock.PlainAgentMessage::class.java, plain)
-        val markdown = blocks.single { it.id == "item:markdown:prose:0" }
+        val markdown = blocks.single { it.id == "item:t1:markdown:prose:0" }
         org.junit.jupiter.api.Assertions.assertInstanceOf(TranscriptBlock.Html::class.java, markdown)
     }
 
@@ -241,6 +247,49 @@ class TranscriptRendererTest {
         assertTrue(html.contains("codex-open:"), html)
         assertTrue(html.contains("ScreenTimeoutSettings.java"), html)
         assertTrue(html.contains(":369") || html.contains("369"), html)
+    }
+
+    @Test
+    fun `same item-1 id across threads does not keep stale first user bubble`() {
+        val epoch = ProcessEpoch(1)
+        fun userBlocks(thread: String, text: String): List<TranscriptBlock> {
+            val state = NormalizedServerState(
+                items = mapOf(
+                    ItemId("item-1") to ItemFact.UserMessage(
+                        id = ItemId("item-1"),
+                        threadId = ThreadId(thread),
+                        turnId = TurnId("turn-1"),
+                        status = ItemStatus.COMPLETED,
+                        terminalRank = TerminalRank.COMPLETED,
+                        epoch = epoch,
+                        arrivalSeq = 1L,
+                        text = text,
+                    ),
+                ),
+            )
+            return TranscriptRenderer.renderBlocks(state, ThreadId(thread))
+        }
+
+        val projectQ = "Project này nói về cái gì, và cấu trúc project"
+        val perfQ = "Hiện tại app gặp khá nhiều về vấn đề performance"
+
+        val first = userBlocks("thread-a", projectQ).single()
+        val second = userBlocks("thread-b", perfQ).single()
+
+        // Different threads must not share the same KEEP identity.
+        org.junit.jupiter.api.Assertions.assertNotEquals(first.id, second.id)
+        org.junit.jupiter.api.Assertions.assertNotEquals(first.revision, second.revision)
+        org.junit.jupiter.api.Assertions.assertTrue(first.id.contains("thread-a"), first.id)
+        org.junit.jupiter.api.Assertions.assertTrue(second.id.contains("thread-b"), second.id)
+        org.junit.jupiter.api.Assertions.assertEquals(projectQ, first.revision.viewVersion)
+        org.junit.jupiter.api.Assertions.assertEquals(perfQ, second.revision.viewVersion)
+
+        val plan = TranscriptBlockReconciler.plan(listOf(first), listOf(second))
+        org.junit.jupiter.api.Assertions.assertEquals(
+            TranscriptBlockReconciler.Change.INSERT,
+            plan.entries.single().change,
+        )
+        org.junit.jupiter.api.Assertions.assertEquals(1, plan.removals.size)
     }
 
     @Test

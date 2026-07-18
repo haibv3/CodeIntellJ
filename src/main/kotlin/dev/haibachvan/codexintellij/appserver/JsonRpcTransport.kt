@@ -200,8 +200,14 @@ class JsonRpcTransport(
             turnId = params?.get("turnId")?.takeIf { it.isJsonPrimitive }?.asString,
             itemId = params?.get("itemId")?.takeIf { it.isJsonPrimitive }?.asString,
             deltaKind = kind,
+            method = notification.method,
+            streamIndex = params?.longOrNull("summaryIndex")
+                ?: params?.longOrNull("contentIndex"),
         )
     }
+
+    private fun JsonObject.longOrNull(key: String): Long? =
+        get(key)?.takeIf { it.isJsonPrimitive }?.asLong
 
     companion object {
         fun newRequestId(): String = UUID.randomUUID().toString()

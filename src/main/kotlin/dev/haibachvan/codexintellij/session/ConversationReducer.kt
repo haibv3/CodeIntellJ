@@ -190,14 +190,26 @@ class ConversationReducer(
             ?: nested?.string("type")
             ?: typeHintFromMethod(method)
             ?: "unknown"
-        val text = params.string("text")?.takeIf { it.isNotBlank() }
+        val completedPayloadText = params.string("text")?.takeIf { it.isNotBlank() }
             ?: nested?.string("text")?.takeIf { it.isNotBlank() }
+        val text = completedPayloadText
             ?: extractUserMessageText(nested)
+            ?: extractReasoningArrays(nested)
             ?: existingText(existing)
             ?: ""
+        val existingAgent = existing as? ItemFact.AgentMessage
+        val textSealed = when {
+            type in setOf("agent", "agentMessage", "assistant", "plan") &&
+                (status == ItemStatus.COMPLETED || status == ItemStatus.FAILED) &&
+                completedPayloadText != null -> true
+            existingAgent != null -> existingAgent.textSealed
+            else -> false
+        }
         val item: ItemFact = when (type) {
             "user", "userMessage" -> ItemFact.UserMessage(itemId, threadId, turnId, status, rank, event.epoch, event.arrivalSeq, text)
-            "agent", "agentMessage", "assistant", "plan" -> ItemFact.AgentMessage(itemId, threadId, turnId, status, rank, event.epoch, event.arrivalSeq, text)
+            "agent", "agentMessage", "assistant", "plan" -> ItemFact.AgentMessage(
+                itemId, threadId, turnId, status, rank, event.epoch, event.arrivalSeq, text, textSealed,
+            )
             "reasoning" -> ItemFact.Reasoning(
                 itemId, threadId, turnId, status, rank, event.epoch, event.arrivalSeq,
                 text.ifBlank { nested?.string("summary") ?: "" },
@@ -391,9 +403,12 @@ class ConversationReducer(
             return state.copy(items = state.items + (itemId to created))
         }
         if (existing.terminalRank >= TerminalRank.COMPLETED) {
-            // Some servers complete with empty text then continue deltas, or complete before
-            // coalesced backlog drains. Keep accepting agent text growth after COMPLETED.
-            if (existing is ItemFact.AgentMessage && delta.isNotEmpty()) {
+            // Completed with sealed (non-blank) text is authoritative — ignore late deltas.
+            // Blank completed leaves textSealed=false so incremental deltas can still land.
+            if (existing is ItemFact.AgentMessage &&
+                !existing.textSealed &&
+                delta.isNotEmpty()
+            ) {
                 val updated = existing.copy(
                     text = existing.text + delta,
                     arrivalSeq = event.arrivalSeq,
@@ -517,6 +532,29 @@ private fun extractUserMessageText(item: JsonObject?): String? {
             }
         }
     }.takeIf { it.isNotBlank() }
+}
+
+/** Reasoning completed payloads use string arrays for summary/content, not a flat text field. */
+private fun extractReasoningArrays(item: JsonObject?): String? {
+    if (item == null) return null
+    fun joinStringArray(key: String): String {
+        val arr = item.getAsJsonArray(key) ?: return ""
+        return buildString {
+            arr.forEach { el ->
+                if (!el.isJsonPrimitive) return@forEach
+                if (isNotEmpty()) append('\n')
+                append(el.asString)
+            }
+        }
+    }
+    val summary = joinStringArray("summary")
+    val content = joinStringArray("content")
+    return when {
+        summary.isNotBlank() && content.isNotBlank() -> "$summary\n\n$content"
+        summary.isNotBlank() -> summary
+        content.isNotBlank() -> content
+        else -> null
+    }
 }
 
 private fun JsonObject.string(key: String): String? =

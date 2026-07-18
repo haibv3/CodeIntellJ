@@ -146,7 +146,7 @@ object TranscriptRenderer {
                     agentId = sub.fact.agentId,
                     statusLabel = agentStatusLabel(sub.fact.status),
                     summary = sub.fact.summary,
-                    id = "agent:${sub.id.value}",
+                    id = "agent:${sub.threadId.value}:${sub.id.value}",
                     revision = TranscriptBlockRevision(
                         sourceVersion = sub.arrivalSeq,
                         viewVersion = "${sub.fact.status}:${sub.fact.summary.orEmpty()}",
@@ -157,8 +157,11 @@ object TranscriptRenderer {
         for (item in items) {
             when (item) {
                 is ItemFact.UserMessage -> emitHtml(
-                    id = "item:${item.id.value}:user",
-                    revision = TranscriptBlockRevision(item.arrivalSeq),
+                    id = "item:${item.threadId.value}:${item.id.value}:user",
+                    revision = TranscriptBlockRevision(
+                        sourceVersion = item.arrivalSeq,
+                        viewVersion = item.text,
+                    ),
                     fragment = userBlock(item.text),
                 )
                 is ItemFact.AgentMessage -> {
@@ -184,7 +187,7 @@ object TranscriptRenderer {
                     }
                 }
                 is ItemFact.ApprovalReference -> emitHtml(
-                    id = "item:${item.id.value}:approval",
+                    id = "item:${item.threadId.value}:${item.id.value}:approval",
                     revision = TranscriptBlockRevision(item.arrivalSeq),
                     fragment = metaBlock(
                         "Approval",
@@ -192,7 +195,7 @@ object TranscriptRenderer {
                     ),
                 )
                 is ItemFact.Unknown -> emitHtml(
-                    id = "item:${item.id.value}:unknown",
+                    id = "item:${item.threadId.value}:${item.id.value}:unknown",
                     revision = TranscriptBlockRevision(item.arrivalSeq),
                     fragment = metaBlock(
                         "Unknown (${escape(item.type)})",
@@ -239,7 +242,7 @@ object TranscriptRenderer {
                 agentId = sub.fact.agentId,
                 statusLabel = agentStatusLabel(sub.fact.status),
                 summary = sub.fact.summary,
-                id = "agent:${sub.id.value}",
+                id = "agent:${sub.threadId.value}:${sub.id.value}",
                 revision = TranscriptBlockRevision(
                     sourceVersion = sub.arrivalSeq,
                     viewVersion = "${sub.fact.status}:${sub.fact.summary.orEmpty()}",
@@ -317,7 +320,11 @@ object TranscriptRenderer {
         }
         val running = HashSet<String>()
         if (activeTurnId != null) {
-            running += "turn-$activeTurnId"
+            val threadForTurn = items.firstOrNull { it.turnId?.value == activeTurnId }?.threadId?.value
+                ?: items.firstOrNull()?.threadId?.value
+            if (threadForTurn != null) {
+                running += "$threadForTurn/turn-$activeTurnId"
+            }
         }
         for ((key, sectionItems) in activityByKey) {
             visits += sectionItems.size
@@ -396,9 +403,10 @@ object TranscriptRenderer {
 
     /** Section key used for expand/collapse of a turn activity group. */
     fun activitySectionKey(items: List<ItemFact>): String {
+        val thread = items.firstOrNull()?.threadId?.value ?: "thread"
         val turn = items.firstNotNullOfOrNull { it.turnId?.value }
         val first = items.firstOrNull()?.id?.value ?: "x"
-        return if (turn != null) "turn-$turn" else "act-$first"
+        return if (turn != null) "$thread/turn-$turn" else "$thread/act-$first"
     }
 
     /**
@@ -426,7 +434,11 @@ object TranscriptRenderer {
 
     private fun turnGroupKey(item: ItemFact): String {
         val turn = item.turnId
-        return if (turn != null) "t:${turn.value}" else "i:${item.id.value}"
+        return if (turn != null) {
+            "th:${item.threadId.value}/t:${turn.value}"
+        } else {
+            "th:${item.threadId.value}/i:${item.id.value}"
+        }
     }
 
     private fun sameTurn(a: ItemFact, b: ItemFact): Boolean {
@@ -631,6 +643,7 @@ object TranscriptRenderer {
         options: TranscriptRenderOptions,
     ): List<TranscriptBlock> {
         val itemId = item.id.value
+        val blockPrefix = "item:${item.threadId.value}:$itemId"
         val text = item.text
         val parts = MarkdownFenceSplitter.split(text)
         if (parts.none { it is MarkdownFenceSplitter.Part.Fence }) {
@@ -639,7 +652,7 @@ object TranscriptRenderer {
                     TranscriptBlock.PlainAgentMessage(
                         itemId = itemId,
                         text = text,
-                        id = "item:$itemId:prose:0",
+                        id = "$blockPrefix:prose:0",
                         revision = TranscriptBlockRevision(viewVersion = text),
                     ),
                 )
@@ -647,7 +660,7 @@ object TranscriptRenderer {
             return listOf(
                 TranscriptBlock.Html(
                     fragment = agentBlock(itemId, text, options),
-                    id = "item:$itemId:prose:0",
+                    id = "$blockPrefix:prose:0",
                     revision = TranscriptBlockRevision(
                         viewVersion = "$text\u0000light=${options.lightweightStreaming}",
                     ),
@@ -675,7 +688,7 @@ object TranscriptRenderer {
                   $copy
                 </div>
                 """.trimIndent(),
-                id = "item:$itemId:prose:${proseIndex++}",
+                id = "$blockPrefix:prose:${proseIndex++}",
                 revision = TranscriptBlockRevision(
                     viewVersion = "$chunk\u0000copy=$withCopy;light=${options.lightweightStreaming}",
                 ),
@@ -689,7 +702,7 @@ object TranscriptRenderer {
                     out += TranscriptBlock.CodeFence(
                         language = part.language,
                         code = part.code,
-                        id = "item:$itemId:fence:${fenceIndex++}",
+                        id = "$blockPrefix:fence:${fenceIndex++}",
                         revision = TranscriptBlockRevision(
                             viewVersion = "${part.language.orEmpty()}\u0000${part.code}",
                         ),

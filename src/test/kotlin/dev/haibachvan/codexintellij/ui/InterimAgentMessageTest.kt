@@ -68,7 +68,7 @@ class InterimAgentMessageTest {
         val activeHtml = TranscriptRenderer.render(
             store.snapshot(),
             ThreadId("t1"),
-            TranscriptRenderOptions(activeTurnId = "turn1", expandedReasoningIds = setOf("turn-turn1")),
+            TranscriptRenderOptions(activeTurnId = "turn1", expandedReasoningIds = setOf("t1/turn-turn1")),
         )
         assertTrue(activeHtml.contains("think-toggle"))
         assertFalse(activeHtml.contains("codex-copy:"))
@@ -83,7 +83,7 @@ class InterimAgentMessageTest {
         val doneHtml = TranscriptRenderer.render(
             store.snapshot(),
             ThreadId("t1"),
-            TranscriptRenderOptions(expandedReasoningIds = setOf("turn-turn1")),
+            TranscriptRenderOptions(expandedReasoningIds = setOf("t1/turn-turn1")),
         )
         assertTrue(doneHtml.contains("codex-copy:a3"))
         assertFalse(doneHtml.contains("codex-copy:a1"))

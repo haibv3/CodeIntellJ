@@ -57,6 +57,8 @@ sealed class ItemFact {
         override val epoch: ProcessEpoch,
         override val arrivalSeq: Long,
         val text: String,
+        /** True when a non-blank item/completed payload sealed the text (authoritative). */
+        val textSealed: Boolean = false,
     ) : ItemFact()
 
     data class Reasoning(

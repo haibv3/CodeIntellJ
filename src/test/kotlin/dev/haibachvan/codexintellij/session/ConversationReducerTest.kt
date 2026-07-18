@@ -322,6 +322,91 @@ class ConversationReducerTest {
     }
 
     @Test
+    fun `post-complete delta after full completed text does not duplicate`() {
+        var state = NormalizedServerState()
+        state = reducer.reduce(state, notification(1, "thread/started", obj("threadId" to "t1")))
+        state = reducer.reduce(
+            state,
+            SequencedEvent(
+                epoch, 2, 1, SequencedEventKind.TEXT_DELTA, null,
+                WireEnvelope.Notification(
+                    "item/agentMessage/delta",
+                    obj("threadId" to "t1", "itemId" to "i1", "delta" to "Hello"),
+                ),
+            ),
+        )
+        state = reducer.reduce(
+            state,
+            SequencedEvent(
+                epoch, 3, 2, SequencedEventKind.TEXT_DELTA, null,
+                WireEnvelope.Notification(
+                    "item/agentMessage/delta",
+                    obj("itemId" to "i1", "delta" to " world"),
+                ),
+            ),
+        )
+        state = reducer.reduce(
+            state,
+            notification(
+                4,
+                "item/completed",
+                JsonObject().apply {
+                    addProperty("threadId", "t1")
+                    addProperty("turnId", "u1")
+                    add(
+                        "item",
+                        JsonObject().apply {
+                            addProperty("id", "i1")
+                            addProperty("type", "agentMessage")
+                            addProperty("text", "Hello world")
+                        },
+                    )
+                },
+            ),
+        )
+        // Late/redeelivered chunk must not append onto authoritative completed text.
+        state = reducer.reduce(
+            state,
+            SequencedEvent(
+                epoch, 5, 3, SequencedEventKind.TEXT_DELTA, null,
+                WireEnvelope.Notification(
+                    "item/agentMessage/delta",
+                    obj("itemId" to "i1", "delta" to " world"),
+                ),
+            ),
+        )
+        val agent = state.items[ItemId("i1")] as ItemFact.AgentMessage
+        assertEquals("Hello world", agent.text)
+    }
+
+    @Test
+    fun `reasoning completed content and summary arrays populate text`() {
+        var state = NormalizedServerState()
+        state = reducer.reduce(state, notification(1, "thread/started", obj("threadId" to "t1")))
+        val item = JsonObject().apply {
+            addProperty("id", "r1")
+            addProperty("type", "reasoning")
+            add("summary", com.google.gson.JsonArray().apply { add("Tóm tắt") })
+            add("content", com.google.gson.JsonArray().apply { add("Chi tiết suy luận") })
+        }
+        state = reducer.reduce(
+            state,
+            notification(
+                2,
+                "item/completed",
+                JsonObject().apply {
+                    addProperty("threadId", "t1")
+                    addProperty("turnId", "u1")
+                    add("item", item)
+                },
+            ),
+        )
+        val reasoning = state.items[ItemId("r1")] as ItemFact.Reasoning
+        assertTrue(reasoning.text.contains("Tóm tắt"), reasoning.text)
+        assertTrue(reasoning.text.contains("Chi tiết suy luận"), reasoning.text)
+    }
+
+    @Test
     fun `plan items are stored as agent messages`() {
         var state = NormalizedServerState()
         state = reducer.reduce(state, notification(1, "thread/started", obj("threadId" to "t1")))

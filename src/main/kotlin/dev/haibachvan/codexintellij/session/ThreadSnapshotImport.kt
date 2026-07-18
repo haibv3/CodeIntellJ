@@ -133,10 +133,12 @@ object ThreadSnapshotImport {
             "agentMessage", "agent", "assistant" -> ItemFact.AgentMessage(
                 itemId, threadId, turnId, status, rank, epoch, arrivalSeq,
                 text = item.string("text")?.takeIf { it.isNotBlank() } ?: extractUserText(item),
+                textSealed = item.string("text")?.isNotBlank() == true,
             )
             "plan" -> ItemFact.AgentMessage(
                 itemId, threadId, turnId, status, rank, epoch, arrivalSeq,
                 text = item.string("text").orEmpty(),
+                textSealed = item.string("text")?.isNotBlank() == true,
             )
             "reasoning" -> ItemFact.Reasoning(
                 itemId, threadId, turnId, status, rank, epoch, arrivalSeq,
