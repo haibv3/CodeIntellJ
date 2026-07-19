@@ -75,6 +75,10 @@ object HtmlSwingSafe {
      */
     fun measurePreferredHeight(pane: JEditorPane, width: Int): Int {
         val w = width.coerceAtLeast(1)
+        // Drop cached Swing sizes first — after streaming setText(), preferredSize often
+        // stays at the previous tall value and leaves a blank band under collapsed thinking.
+        pane.preferredSize = null
+        pane.minimumSize = null
         // Reset size so BasicTextUI rebuilds root-view metrics before measuring.
         pane.setSize(0, 0)
         pane.setSize(w, Short.MAX_VALUE.toInt())
@@ -87,6 +91,8 @@ object HtmlSwingSafe {
         }.getOrDefault(0)
         val fromPref = pane.preferredSize.height
         // Small padding covers border/radius paint that View span sometimes omits.
+        // After clearing cached preferredSize above, max() no longer preserves a stale
+        // tall height from the previous streaming/expanded document.
         return max(fromView, fromPref).coerceAtLeast(24) + 4
     }
 

@@ -270,9 +270,25 @@ object TranscriptRenderer {
             append(key in options.expandedReasoningIds).append('|')
             append(options.reasoningElapsedSeconds[key]).append('|')
             append(expandedActivities.joinToString(",")).append('|')
-            items.forEach { append(it.id.value).append(':').append(it.status).append(';') }
+            items.forEach { item ->
+                append(item.id.value).append(':').append(item.status).append(':')
+                // Text must participate: status/arrival alone can miss in-place delta updates
+                // when coalescing reuses watermarks, leaving a blank/stale thinking body.
+                append(sectionItemContentFingerprint(item)).append(';')
+            }
         }
         return TranscriptBlockRevision(sourceVersion, viewVersion)
+    }
+
+    private fun sectionItemContentFingerprint(item: ItemFact): Int = when (item) {
+        is ItemFact.AgentMessage -> item.text.hashCode()
+        is ItemFact.Reasoning -> item.text.hashCode()
+        is ItemFact.Command -> (31 * item.command.hashCode()) + item.output.hashCode()
+        is ItemFact.Patch -> item.fact.resolvedChanges()
+            .joinToString { "${it.path}:${it.kind}:${it.unifiedDiff.orEmpty().hashCode()}" }
+            .hashCode()
+        is ItemFact.Subagent -> (31 * item.fact.status.hashCode()) + item.fact.summary.orEmpty().hashCode()
+        else -> 0
     }
 
     /**
@@ -622,6 +638,19 @@ object TranscriptRenderer {
         val itemId = item.id.value
         val blockPrefix = "item:${item.threadId.value}:$itemId"
         val text = item.text
+        // While streaming, keep one Html host. Plain↔Html↔CodeFence remounts dispose
+        // Swing components mid-flight and leave blank/flickering bands in the transcript.
+        if (options.lightweightStreaming) {
+            return listOf(
+                TranscriptBlock.Html(
+                    fragment = agentBlock(itemId, text, options),
+                    id = "$blockPrefix:prose:0",
+                    revision = TranscriptBlockRevision(
+                        viewVersion = "$text\u0000light=true",
+                    ),
+                ),
+            )
+        }
         val parts = MarkdownFenceSplitter.split(text)
         if (parts.none { it is MarkdownFenceSplitter.Part.Fence }) {
             if (isPlainAgentText(text)) {
@@ -639,7 +668,7 @@ object TranscriptRenderer {
                     fragment = agentBlock(itemId, text, options),
                     id = "$blockPrefix:prose:0",
                     revision = TranscriptBlockRevision(
-                        viewVersion = "$text\u0000light=${options.lightweightStreaming}",
+                        viewVersion = "$text\u0000light=false",
                     ),
                 ),
             )

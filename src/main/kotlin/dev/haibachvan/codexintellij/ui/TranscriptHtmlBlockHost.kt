@@ -48,6 +48,7 @@ internal class TranscriptHtmlBlockHost(
     }
 
     fun updateContent(block: TranscriptBlock.Html, width: Int) {
+        val previousHeight = lockedHeight
         val html = artifactCache.document(block)
         HtmlSwingSafe.disableBidi(pane)
         try {
@@ -57,6 +58,9 @@ internal class TranscriptHtmlBlockHost(
         }
         HtmlSwingSafe.applyUniformContentFont(pane)
         applyMeasuredWidth(width.coerceAtLeast(120))
+        if (lockedHeight != previousHeight) {
+            onRemeasured()
+        }
     }
 
     fun ensureWidth(width: Int) {

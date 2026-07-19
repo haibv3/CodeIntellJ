@@ -25,7 +25,6 @@ class MultiAgentUiWorkloadTest {
 
         assertEquals(8, state.agents.size)
         assertEquals(2_000, state.items.size)
-        assertEquals(2_000, blocks.size)
         assertEquals(MultiAgentUiWorkload.spec.transcriptBlockCount, blocks.size)
     }
 

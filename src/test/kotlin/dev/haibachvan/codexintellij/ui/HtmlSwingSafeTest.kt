@@ -37,4 +37,31 @@ class HtmlSwingSafeTest {
         assertTrue(tallH > shortH, "expected tall=$tallH > short=$shortH")
         assertTrue(tallH >= 60, "expected multi-line height >= 60, got $tallH")
     }
+
+    @Test
+    fun `measurePreferredHeight shrinks after collapsing tall html`() {
+        var tallH = 0
+        var shortH = 0
+        SwingUtilities.invokeAndWait {
+            val pane = JEditorPane("text/html", "").apply {
+                isEditable = false
+                contentType = "text/html"
+            }
+            pane.text = """
+                <html><body><div>
+                ${(1..20).joinToString("<br/>") { "Reasoning line $it" }}
+                </div></body></html>
+            """.trimIndent()
+            tallH = HtmlSwingSafe.measurePreferredHeight(pane, 240)
+            // ApplyMeasuredSize freezes preferredSize like production hosts do.
+            HtmlSwingSafe.applyMeasuredSize(pane, 240)
+            pane.text = "<html><body><div>Đã hoạt động trong 46s ›</div></body></html>"
+            shortH = HtmlSwingSafe.measurePreferredHeight(pane, 240)
+        }
+        assertTrue(tallH > 80, "expected tall thinking body, got $tallH")
+        assertTrue(
+            shortH < tallH / 2,
+            "collapse must drop stale tall height (tall=$tallH short=$shortH)",
+        )
+    }
 }
